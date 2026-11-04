@@ -9,7 +9,7 @@
 [![Go](https://img.shields.io/github/go-mod/go-version/chmenegatti/oiapoque-chui)](go.mod)
 [![licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-green)](LICENSE)
 
-[Página do projeto](https://chmenegatti.github.io/oiapoque-chui/) ·
+[Página do projeto](https://www.cesarmenegatti.com/oiapoque-chui/) ·
 [Como jogar](#como-jogar) ·
 [A viagem](#a-viagem) ·
 [Jogar por ssh](#jogar-por-ssh) ·
