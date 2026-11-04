@@ -1,0 +1,14 @@
+{
+  "pista": "simples", "nome": "BR-010 / BR-153", "origem": "Imperatriz", "destino": "Palmas",
+  "km_total": 610, "seed": 153, "escala": 24, "saida": 10, "gasolina": 6.5,
+  "terreno": [
+    {"ate_km": 120, "tipo": "ondulado"},
+    {"ate_km": 540, "tipo": "cerrado", "nevoa": 0.3, "nome": "Cerrado do Tocantins: fumaça de queimada"},
+    {"ate_km": 610, "tipo": "urbano"}
+  ],
+  "cidades": [
+    {"nome": "Estreito", "km": 120}, {"nome": "Araguaína", "km": 250},
+    {"nome": "Guaraí", "km": 360}, {"nome": "Miranorte", "km": 450},
+    {"nome": "Paraíso do Tocantins", "km": 530}, {"nome": "Palmas", "km": 610}
+  ]
+}

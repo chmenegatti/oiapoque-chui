@@ -1,0 +1,16 @@
+{
+  "pista": "dupla", "nome": "BR-050 / SP-330 Anhanguera", "origem": "Uberlândia", "destino": "São Paulo",
+  "km_total": 590, "seed": 330, "escala": 23, "saida": 8, "gasolina": 6.0,
+  "terreno": [
+    {"ate_km": 290, "tipo": "ondulado", "nome": "Canaviais"},
+    {"ate_km": 320, "tipo": "urbano"},
+    {"ate_km": 500, "tipo": "ondulado", "nome": "Via Anhanguera"},
+    {"ate_km": 590, "tipo": "urbano", "nevoa": 0.3, "nome": "Marginal: trânsito pesado"}
+  ],
+  "cidades": [
+    {"nome": "Uberaba", "km": 105}, {"nome": "Igarapava", "km": 190},
+    {"nome": "Ribeirão Preto", "km": 300}, {"nome": "Pirassununga", "km": 380},
+    {"nome": "Limeira", "km": 450}, {"nome": "Campinas", "km": 500},
+    {"nome": "Jundiaí", "km": 540}, {"nome": "São Paulo", "km": 590}
+  ]
+}

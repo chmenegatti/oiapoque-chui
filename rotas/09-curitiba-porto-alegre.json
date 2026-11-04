@@ -1,0 +1,16 @@
+{
+  "pista": "dupla", "nome": "BR-376 / BR-101", "origem": "Curitiba", "destino": "Porto Alegre",
+  "km_total": 710, "seed": 101, "escala": 27, "saida": 5.5, "gasolina": 6.4,
+  "terreno": [
+    {"ate_km": 80,  "tipo": "serra",    "nevoa": 0.7, "chuva": 0.3, "nome": "Serra do Mar"},
+    {"ate_km": 560, "tipo": "litoral",  "chuva": 0.3, "nome": "Litoral catarinense"},
+    {"ate_km": 680, "tipo": "ondulado", "chuva": 0.4},
+    {"ate_km": 710, "tipo": "urbano"}
+  ],
+  "cidades": [
+    {"nome": "Joinville", "km": 130}, {"nome": "Itajaí", "km": 200},
+    {"nome": "Florianópolis", "km": 300}, {"nome": "Tubarão", "km": 430},
+    {"nome": "Criciúma", "km": 470}, {"nome": "Torres", "km": 560},
+    {"nome": "Osório", "km": 620}, {"nome": "Porto Alegre", "km": 710}
+  ]
+}

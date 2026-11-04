@@ -1,0 +1,15 @@
+{
+  "pista": "simples", "nome": "BR-153 / BR-060", "origem": "Palmas", "destino": "Brasília",
+  "km_total": 900, "seed": 60, "escala": 35, "saida": 14, "gasolina": 6.3,
+  "terreno": [
+    {"ate_km": 560, "tipo": "cerrado", "nome": "Cerrado: retas sem fim"},
+    {"ate_km": 820, "tipo": "ondulado", "chuva": 0.2},
+    {"ate_km": 900, "tipo": "urbano", "nome": "Planalto Central"}
+  ],
+  "cidades": [
+    {"nome": "Gurupi", "km": 220}, {"nome": "Alvorada", "km": 320},
+    {"nome": "Porangatu", "km": 410}, {"nome": "Uruaçu", "km": 560},
+    {"nome": "Anápolis", "km": 760}, {"nome": "Alexânia", "km": 810},
+    {"nome": "Brasília", "km": 900}
+  ]
+}

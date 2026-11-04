@@ -1,0 +1,16 @@
+{
+  "pista": "simples", "nome": "BR-010 Belém-Brasília", "origem": "Belém", "destino": "Imperatriz",
+  "km_total": 620, "seed": 10, "escala": 24, "saida": 7, "gasolina": 6.6,
+  "terreno": [
+    {"ate_km": 40,  "tipo": "urbano",   "chuva": 0.4},
+    {"ate_km": 300, "tipo": "floresta", "chuva": 0.5, "nome": "Floresta Amazônica"},
+    {"ate_km": 560, "tipo": "ondulado", "chuva": 0.1, "nome": "Belém-Brasília"},
+    {"ate_km": 620, "tipo": "urbano"}
+  ],
+  "cidades": [
+    {"nome": "Castanhal", "km": 70}, {"nome": "São Miguel do Guamá", "km": 140},
+    {"nome": "Mãe do Rio", "km": 200}, {"nome": "Paragominas", "km": 310},
+    {"nome": "Ulianópolis", "km": 390}, {"nome": "Dom Eliseu", "km": 430},
+    {"nome": "Açailândia", "km": 560}, {"nome": "Imperatriz", "km": 620}
+  ]
+}

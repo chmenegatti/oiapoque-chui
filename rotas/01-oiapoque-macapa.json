@@ -1,0 +1,15 @@
+{
+  "pista": "simples", "nome": "BR-156", "origem": "Oiapoque", "destino": "Macapá",
+  "km_total": 590, "seed": 156, "escala": 23, "saida": 6.5, "gasolina": 7.4,
+  "terreno": [
+    {"ate_km": 110, "tipo": "terra",    "chuva": 0.7, "nevoa": 0.3, "nome": "BR-156: trecho de terra"},
+    {"ate_km": 250, "tipo": "floresta", "chuva": 0.5, "nevoa": 0.2, "nome": "Floresta Amazônica"},
+    {"ate_km": 520, "tipo": "cerrado",  "chuva": 0.2, "nome": "Lavrados do Amapá"},
+    {"ate_km": 590, "tipo": "urbano",   "chuva": 0.3}
+  ],
+  "cidades": [
+    {"nome": "Calçoene", "km": 220}, {"nome": "Amapá", "km": 290},
+    {"nome": "Tartarugalzinho", "km": 360}, {"nome": "Ferreira Gomes", "km": 450},
+    {"nome": "Macapá", "km": 590}
+  ]
+}

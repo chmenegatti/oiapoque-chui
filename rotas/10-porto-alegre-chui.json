@@ -1,0 +1,15 @@
+{
+  "pista": "simples", "nome": "BR-116 / BR-471", "origem": "Porto Alegre", "destino": "Chuí",
+  "km_total": 525, "seed": 471, "escala": 20, "saida": 15, "gasolina": 6.5,
+  "terreno": [
+    {"ate_km": 30,  "tipo": "urbano"},
+    {"ate_km": 260, "tipo": "pampa", "nome": "Pampa gaúcho"},
+    {"ate_km": 525, "tipo": "pampa", "nevoa": 0.5, "chuva": 0.2, "nome": "Banhado do Taim: minuano soprando"}
+  ],
+  "cidades": [
+    {"nome": "Guaíba", "km": 30}, {"nome": "Camaquã", "km": 130},
+    {"nome": "São Lourenço do Sul", "km": 200}, {"nome": "Pelotas", "km": 260},
+    {"nome": "Rio Grande", "km": 320}, {"nome": "Taim", "km": 420},
+    {"nome": "Santa Vitória do Palmar", "km": 500}, {"nome": "Chuí", "km": 525}
+  ]
+}

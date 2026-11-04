@@ -1,0 +1,108 @@
+{
+  "pista": "dupla", "nome": "BR-116 Régis Bittencourt",
+  "origem": "São Paulo",
+  "destino": "Curitiba",
+  "km_total": 408,
+  "seed": 116,
+  "terreno": [
+    {
+      "ate_km": 35,
+      "tipo": "urbano"
+    },
+    {
+      "ate_km": 85,
+      "tipo": "ondulado",
+      "nevoa": 0.2
+    },
+    {
+      "ate_km": 125,
+      "tipo": "serra",
+      "nevoa": 0.9,
+      "nome": "Serra do Cafezal"
+    },
+    {
+      "ate_km": 240,
+      "tipo": "bananal",
+      "nevoa": 0.1,
+      "nome": "Vale do Ribeira"
+    },
+    {
+      "ate_km": 310,
+      "tipo": "serra",
+      "nevoa": 0.7,
+      "nome": "Serra do Azeite"
+    },
+    {
+      "ate_km": 385,
+      "tipo": "ondulado",
+      "nevoa": 0.3
+    },
+    {
+      "ate_km": 408,
+      "tipo": "urbano"
+    }
+  ],
+  "cidades": [
+    {
+      "nome": "Taboão da Serra",
+      "km": 15
+    },
+    {
+      "nome": "Embu das Artes",
+      "km": 25
+    },
+    {
+      "nome": "Itapecerica da Serra",
+      "km": 33
+    },
+    {
+      "nome": "São Lourenço da Serra",
+      "km": 55
+    },
+    {
+      "nome": "Juquitiba",
+      "km": 72
+    },
+    {
+      "nome": "Miracatu",
+      "km": 135
+    },
+    {
+      "nome": "Registro",
+      "km": 185
+    },
+    {
+      "nome": "Jacupiranga",
+      "km": 210
+    },
+    {
+      "nome": "Cajati",
+      "km": 225
+    },
+    {
+      "nome": "Barra do Turvo",
+      "km": 280
+    },
+    {
+      "nome": "Campina Grande do Sul",
+      "km": 380
+    },
+    {
+      "nome": "Curitiba",
+      "km": 408
+    }
+  ],
+  "postos": [
+    48,
+    100,
+    160,
+    190,
+    250,
+    300,
+    345,
+    390
+  ],
+  "saida": 16.5,
+  "gasolina": 6.2,
+  "escala": 20
+}

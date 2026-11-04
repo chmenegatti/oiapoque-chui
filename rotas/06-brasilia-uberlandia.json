@@ -1,0 +1,15 @@
+{
+  "pista": "dupla", "nome": "BR-040 / BR-050", "origem": "Brasília", "destino": "Uberlândia",
+  "km_total": 430, "seed": 50, "escala": 20, "saida": 13, "gasolina": 6.2,
+  "terreno": [
+    {"ate_km": 40,  "tipo": "urbano"},
+    {"ate_km": 300, "tipo": "cerrado"},
+    {"ate_km": 400, "tipo": "ondulado", "chuva": 0.6, "nome": "Chuva de verão no Triângulo"},
+    {"ate_km": 430, "tipo": "urbano", "chuva": 0.2}
+  ],
+  "cidades": [
+    {"nome": "Luziânia", "km": 60}, {"nome": "Cristalina", "km": 130},
+    {"nome": "Catalão", "km": 300}, {"nome": "Araguari", "km": 390},
+    {"nome": "Uberlândia", "km": 430}
+  ]
+}

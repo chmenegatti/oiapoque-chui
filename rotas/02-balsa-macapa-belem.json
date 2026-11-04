@@ -1,0 +1,12 @@
+{
+  "nome": "Balsa pelo Rio Amazonas", "origem": "Santana", "destino": "Belém", "modo": "balsa",
+  "km_total": 330, "seed": 2, "escala": 165, "saida": 18, "passagem": 180, "premio": 250,
+  "terreno": [
+    {"ate_km": 120, "tipo": "rio", "chuva": 0.3, "nome": "Rio Amazonas"},
+    {"ate_km": 260, "tipo": "rio", "nevoa": 0.6, "nome": "Estreitos de Breves"},
+    {"ate_km": 330, "tipo": "rio", "chuva": 0.4, "nome": "Baía do Guajará"}
+  ],
+  "cidades": [
+    {"nome": "Breves", "km": 170}, {"nome": "Curralinho", "km": 230}, {"nome": "Belém", "km": 330}
+  ]
+}
