@@ -18,6 +18,8 @@ func main() {
 	addr := flag.String("ssh", "", "serve o jogo por ssh neste endereço (ex: :2323)")
 	mode3d := flag.Bool("3d", false, "abre a versão 3D em janela (protótipo)")
 	trecho := flag.Int("trecho", 8, "trecho da versão 3D (1 a 10)")
+	bench := flag.Duration("bench", 0, "3D: piloto automático por este tempo e imprime FPS e tempos (ex: 30s)")
+	shot := flag.String("shot", "", "3D: grava o último quadro neste PNG e fecha")
 	flag.Parse()
 
 	routes, err := game.LoadRoutes(rotasFS)
@@ -26,7 +28,7 @@ func main() {
 		os.Exit(1)
 	}
 	if *mode3d {
-		if err := gpu.Run3D(routes, *trecho); err != nil {
+		if err := gpu.Run3D(routes, *trecho, gpu.Options3D{Bench: *bench, Shot: *shot}); err != nil {
 			fmt.Fprintln(os.Stderr, "erro na versão 3D:", err)
 			os.Exit(1)
 		}
