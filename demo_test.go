@@ -17,7 +17,7 @@ func TestDemoGIF(t *testing.T) {
 	if os.Getenv("DEMO") == "" {
 		t.Skip("defina DEMO=1 para gerar docs/demo.gif")
 	}
-	routes, err := loadRoutes()
+	routes, err := loadRoutes(os.DirFS("."))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,6 +51,7 @@ func TestDemoGIF(t *testing.T) {
 			g.spawn(&g.cars[i], g.pos+playerZ+segLen*float64(15+g.rng.Intn(drawDist)))
 		}
 		stopped := map[float64]bool{}
+		var v view
 		for f := 0; f < int(sc.seconds*60); f++ {
 			if g.route.boat() {
 				autopilot(g, stopped, 1.0/60) // desvia dos troncos
@@ -60,9 +61,9 @@ func TestDemoGIF(t *testing.T) {
 			}
 			g.Update(1.0/60, Controls{})
 			if f%every == 0 {
-				g.Draw(s)
-				frames = append(frames, slices.Clone(g.frame.Pix))
-				W, H = g.frame.W, g.frame.H
+				v.Draw(s, g)
+				frames = append(frames, slices.Clone(v.frame.Pix))
+				W, H = v.frame.W, v.frame.H
 			}
 		}
 	}

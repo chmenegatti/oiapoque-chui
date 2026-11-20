@@ -7,32 +7,8 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-// RGB é uma cor truecolor.
-type RGB struct{ R, G, B uint8 }
-
-func (c RGB) tc() tcell.Color {
+func tc(c RGB) tcell.Color {
 	return tcell.NewRGBColor(int32(c.R), int32(c.G), int32(c.B))
-}
-
-func clamp(v, lo, hi float64) float64 { return math.Max(lo, math.Min(hi, v)) }
-
-func lerp(a, b, t float64) float64 { return a + (b-a)*t }
-
-func mix(a, b RGB, t float64) RGB {
-	t = clamp(t, 0, 1)
-	return RGB{
-		uint8(lerp(float64(a.R), float64(b.R), t)),
-		uint8(lerp(float64(a.G), float64(b.G), t)),
-		uint8(lerp(float64(a.B), float64(b.B), t)),
-	}
-}
-
-func scale(c RGB, k float64) RGB {
-	return RGB{
-		uint8(clamp(float64(c.R)*k, 0, 255)),
-		uint8(clamp(float64(c.G)*k, 0, 255)),
-		uint8(clamp(float64(c.B)*k, 0, 255)),
-	}
 }
 
 // Frame é um buffer de pixels. Cada célula do terminal mostra 2 pixels
@@ -77,7 +53,7 @@ func (f *Frame) Flush(s tcell.Screen) {
 	for row := 0; row < f.H/2; row++ {
 		top, bot := f.Pix[2*row*f.W:], f.Pix[(2*row+1)*f.W:]
 		for x := 0; x < f.W; x++ {
-			st := tcell.StyleDefault.Foreground(top[x].tc()).Background(bot[x].tc())
+			st := tcell.StyleDefault.Foreground(tc(top[x])).Background(tc(bot[x]))
 			s.SetContent(x, row, '▀', nil, st)
 		}
 	}

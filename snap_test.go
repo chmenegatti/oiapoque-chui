@@ -39,7 +39,7 @@ func TestSnap(t *testing.T) {
 		dir = "snap"
 	}
 	os.MkdirAll(dir, 0o755)
-	routes, err := loadRoutes()
+	routes, err := loadRoutes(os.DirFS("."))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,8 +79,9 @@ func TestSnap(t *testing.T) {
 		if g.route.twoWay() {
 			g.cars[0].x, g.cars[0].dir = 0.5, 1
 		}
-		g.Draw(s)
-		if err := savePNG(g.frame, filepath.Join(dir, c.name+".png"), 3); err != nil {
+		var v view
+		v.Draw(s, g)
+		if err := savePNG(v.frame, filepath.Join(dir, c.name+".png"), 3); err != nil {
 			t.Fatal(err)
 		}
 	}

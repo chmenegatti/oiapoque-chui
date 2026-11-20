@@ -1,9 +1,12 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func trafficGame(t *testing.T) *Game {
-	routes, err := loadRoutes()
+	routes, err := loadRoutes(os.DirFS("."))
 	if err != nil {
 		t.Fatal(err)
 	}

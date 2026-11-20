@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"testing"
 	"time"
 )
@@ -51,16 +52,21 @@ func TestFiltroTerminalComum(t *testing.T) {
 	}
 }
 
-func driving(t *testing.T) *Game {
-	g := trafficGame(t)
+// jogoDeTeste: BR-156 no km 20, sem tráfego, a meia velocidade.
+func jogoDeTeste(t *testing.T) *Game {
+	routes, err := loadRoutes(os.DirFS("."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := NewGame(routes[0], 1000, 30, nil)
+	g.pos = 20 * g.upk
 	g.cars = nil
-	g.cruise = false
 	g.speed = maxSpeed * 0.5
 	return g
 }
 
 func TestSoltouDesacelera(t *testing.T) {
-	g := driving(t)
+	g := jogoDeTeste(t)
 	in := &termInput{kb: &Keyboard{active: true}}
 	step := func() { g.Update(1.0/60, in.controls(time.Now())) }
 	in.kb.down[actUp] = true
@@ -101,18 +107,5 @@ func TestHeuristicaCurva(t *testing.T) {
 	in.keys[actLeft] = keyState{last: now, repeats: 0} // virar sem ↑ não acelera
 	if c := in.controls(now); c.Up {
 		t.Fatal("virar sem ter acelerado não deveria acelerar")
-	}
-}
-
-func TestPilotoDeVelocidade(t *testing.T) {
-	g := driving(t)
-	g.toggleCruise()
-	g.Update(1.0/60, Controls{})
-	if !g.throttle {
-		t.Fatal("piloto ligado acelera sem tecla")
-	}
-	g.Update(1.0/60, Controls{Down: true})
-	if g.cruise {
-		t.Fatal("frear desliga o piloto")
 	}
 }

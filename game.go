@@ -96,10 +96,8 @@ type Game struct {
 	nextCity, terrain, nextRadr int
 	warnedRadr                  int
 
-	cars  []Car
-	frame *Frame
-	proj  [drawDist]proj
-	rng   *rand.Rand
+	cars []Car
+	rng  *rand.Rand
 }
 
 func NewGame(rt *Route, money, fuel float64, up map[string]bool) *Game {

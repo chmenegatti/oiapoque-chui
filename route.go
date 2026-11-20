@@ -1,7 +1,6 @@
 package main
 
 import (
-	"embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -9,9 +8,6 @@ import (
 	"math/rand"
 	"slices"
 )
-
-//go:embed rotas/*.json
-var rotasFS embed.FS
 
 const (
 	carTop  = 140.0 // Fiat 147 1050 de fábrica
@@ -65,15 +61,16 @@ func (rt *Route) baseTop() float64 {
 func (rt *Route) unitsPerKm() float64 { return maxSpeed / (rt.baseTop() * rt.Escala / 3600) }
 func (rt *Route) segsPerKm() float64  { return rt.unitsPerKm() / segLen }
 
-func loadRoutes() ([]*Route, error) {
-	names, err := fs.Glob(rotasFS, "rotas/*.json")
+// loadRoutes lê rotas/NN-*.json de fsys (a raiz do projeto embute a pasta).
+func loadRoutes(fsys fs.FS) ([]*Route, error) {
+	names, err := fs.Glob(fsys, "rotas/*.json")
 	if err != nil {
 		return nil, err
 	}
 	slices.Sort(names)
 	var out []*Route
 	for _, n := range names {
-		b, err := rotasFS.ReadFile(n)
+		b, err := fs.ReadFile(fsys, n)
 		if err != nil {
 			return nil, err
 		}

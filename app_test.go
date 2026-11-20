@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -12,7 +13,7 @@ func press(a *App, k tcell.Key, r rune) { a.key(tcell.NewEventKey(k, r, tcell.Mo
 func TestFluxo(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("HOME", t.TempDir())
-	routes, err := loadRoutes()
+	routes, err := loadRoutes(os.DirFS("."))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +96,7 @@ func TestFluxo(t *testing.T) {
 // TestParada: passar por cidade salva; p pausa; q sai salvando; Enter continua do mesmo km.
 func TestParada(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	routes, err := loadRoutes()
+	routes, err := loadRoutes(os.DirFS("."))
 	if err != nil {
 		t.Fatal(err)
 	}

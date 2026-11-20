@@ -8,52 +8,17 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
+// view guarda o estado de desenho do terminal para um jogo.
+type view struct {
+	frame *Frame
+	proj  [drawDist]proj
+}
+
 // proj guarda a projeção de cada segmento visível no frame atual.
 type proj struct {
 	x1, y1, w1, s1 float64
 	x2, y2, w2, s2 float64
 	clip           int
-}
-
-type skyKey struct {
-	t        float64
-	zen, hor RGB
-}
-
-var skyKeys = []skyKey{
-	{0.00, RGB{4, 6, 20}, RGB{18, 22, 48}},
-	{0.22, RGB{10, 14, 40}, RGB{40, 40, 80}},
-	{0.27, RGB{70, 90, 160}, RGB{250, 160, 90}},
-	{0.35, RGB{70, 130, 220}, RGB{180, 215, 250}},
-	{0.70, RGB{70, 130, 220}, RGB{180, 215, 250}},
-	{0.76, RGB{60, 50, 120}, RGB{255, 120, 50}},
-	{0.81, RGB{10, 14, 40}, RGB{40, 40, 80}},
-	{1.00, RGB{4, 6, 20}, RGB{18, 22, 48}},
-}
-
-func skyColors(t float64) (RGB, RGB) {
-	for i := 0; i < len(skyKeys)-1; i++ {
-		a, b := skyKeys[i], skyKeys[i+1]
-		if t >= a.t && t <= b.t {
-			k := (t - a.t) / (b.t - a.t)
-			return mix(a.zen, b.zen, k), mix(a.hor, b.hor, k)
-		}
-	}
-	return skyKeys[0].zen, skyKeys[0].hor
-}
-
-// daylight: 0.15 (noite) .. 1 (dia), com amanhecer ~6h e anoitecer ~19h.
-func daylight(t float64) float64 {
-	h := t * 24
-	switch {
-	case h < 5.5 || h > 19.5:
-		return 0.15
-	case h < 7:
-		return 0.15 + 0.85*(h-5.5)/1.5
-	case h > 18:
-		return 0.15 + 0.85*(19.5-h)/1.5
-	}
-	return 1
 }
 
 var (
@@ -94,7 +59,7 @@ func drawRow(f *Frame, y int, cx, hw float64, seg *Segment, twoWay bool, shade f
 	}
 }
 
-func (g *Game) mountains(f *Frame, horizon, light float64, hor RGB) {
+func mountains(g *Game, f *Frame, horizon, light float64, hor RGB) {
 	layers := []struct {
 		par, amp, haze float64
 		col            RGB
@@ -121,7 +86,7 @@ func hash(x, y int) uint32 {
 	return h * 0x5bd1e995
 }
 
-func (g *Game) Draw(s tcell.Screen) {
+func (v *view) Draw(s tcell.Screen, g *Game) {
 	cols, rows := s.Size()
 	if cols < 60 || rows < 14 {
 		s.Clear()
@@ -133,10 +98,10 @@ func (g *Game) Draw(s tcell.Screen) {
 		g.beep = false
 	}
 	W, H := cols, (rows-1)*2
-	if g.frame == nil || g.frame.W != W || g.frame.H != H {
-		g.frame = NewFrame(W, H)
+	if v.frame == nil || v.frame.W != W || v.frame.H != H {
+		v.frame = NewFrame(W, H)
 	}
-	f := g.frame
+	f := v.frame
 	xs := float64(H) * 0.66 // escala horizontal (~4:3)
 	light := daylight(g.tod) * (1 - 0.35*g.rainD)
 	night := light < 0.6
@@ -161,7 +126,7 @@ func (g *Game) Draw(s tcell.Screen) {
 			}
 		}
 	}
-	g.mountains(f, horizon, light, hor)
+	mountains(g, f, horizon, light, hor)
 
 	// estrada: do mais perto pro mais longe, recortando por maxy
 	r := g.road
@@ -185,7 +150,7 @@ func (g *Game) Draw(s tcell.Screen) {
 	visible := min(drawDist, len(r.segs)-base.index)
 	for i := range visible {
 		seg := &r.segs[base.index+i]
-		p := &g.proj[i]
+		p := &v.proj[i]
 		p.clip = maxy
 		z1 := math.Max(seg.z1-g.pos, camDepth) // corta no plano próximo
 		p.x1, p.y1, p.w1, p.s1 = project(x-camX, seg.y1-camY, z1, xs, W, H)
@@ -212,7 +177,7 @@ func (g *Game) Draw(s tcell.Screen) {
 		}
 	}
 	for i := visible - 1; i > 0; i-- {
-		p := g.proj[i]
+		p := v.proj[i]
 		sh := shadeAt(i)
 		shade := func(_ byte, c RGB) RGB { return sh(c) }
 		for _, pr := range r.segs[base.index+i].props {
@@ -283,7 +248,7 @@ func (g *Game) Draw(s tcell.Screen) {
 	}
 
 	f.Flush(s)
-	g.drawHUD(s, cols, rows)
+	drawHUD(s, g, cols, rows)
 }
 
 type hudPart struct {
@@ -304,7 +269,7 @@ var (
 	stTitle = stMsg.Foreground(tcell.NewRGBColor(240, 200, 60))
 )
 
-func (g *Game) drawHUD(s tcell.Screen, cols, rows int) {
+func drawHUD(s tcell.Screen, g *Game, cols, rows int) {
 	pick := func(bad bool) tcell.Style {
 		if bad {
 			return stWarn
