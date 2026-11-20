@@ -1,14 +1,15 @@
-package main
+package term
 
 import (
 	"fmt"
 	"time"
 
+	"github.com/chmenegatti/oiapoque-chui/game"
 	"github.com/gdamore/tcell/v2"
 )
 
 // runLocal joga no terminal atual.
-func RunLocal(routes []*Route) error {
+func RunLocal(routes []*game.Route) error {
 	tty, err := tcell.NewDevTty()
 	if err != nil {
 		return fmt.Errorf("erro ao abrir terminal: %w", err)
@@ -17,7 +18,7 @@ func RunLocal(routes []*Route) error {
 	if err != nil {
 		return fmt.Errorf("erro ao abrir terminal: %w", err)
 	}
-	app := NewApp(routes, SavePath())
+	app := NewApp(routes, game.SavePath())
 	app.kb = kb
 	run(s, app, nil)
 	app.Close()

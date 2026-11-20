@@ -5,6 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/chmenegatti/oiapoque-chui/game"
+	"github.com/chmenegatti/oiapoque-chui/gpu"
+	"github.com/chmenegatti/oiapoque-chui/term"
 )
 
 //go:embed rotas/*.json
@@ -16,27 +20,27 @@ func main() {
 	trecho := flag.Int("trecho", 8, "trecho da versão 3D (1 a 10)")
 	flag.Parse()
 
-	routes, err := LoadRoutes(rotasFS)
+	routes, err := game.LoadRoutes(rotasFS)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "erro ao carregar rotas:", err)
 		os.Exit(1)
 	}
 	if *mode3d {
-		if err := Run3D(routes, *trecho); err != nil {
+		if err := gpu.Run3D(routes, *trecho); err != nil {
 			fmt.Fprintln(os.Stderr, "erro na versão 3D:", err)
 			os.Exit(1)
 		}
 		return
 	}
 	if *addr != "" {
-		if err := ServeSSH(*addr, routes); err != nil {
+		if err := term.ServeSSH(*addr, routes); err != nil {
 			fmt.Fprintln(os.Stderr, "erro no servidor ssh:", err)
 			os.Exit(1)
 		}
 		return
 	}
 
-	if err := RunLocal(routes); err != nil {
+	if err := term.RunLocal(routes); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

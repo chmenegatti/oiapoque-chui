@@ -1,4 +1,4 @@
-package main
+package term
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chmenegatti/oiapoque-chui/game"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -25,18 +26,18 @@ type App struct {
 	kb      *Keyboard // estado real do teclado (nil em testes)
 	in      termInput // teclas do terminal → controles do jogo
 	view    view      // estado de desenho do jogo
-	routes  []*Route
-	save    Save
+	routes  []*game.Route
+	save    game.Save
 	scr     screen
-	game    *Game
+	game    *game.Game
 	sel     int
 	confirm bool
 	note    string
 	bg      *Frame
 }
 
-func NewApp(routes []*Route, path string) *App {
-	return &App{routes: routes, path: path, save: LoadSave(path)}
+func NewApp(routes []*game.Route, path string) *App {
+	return &App{routes: routes, path: path, save: game.LoadSave(path)}
 }
 
 func (a *App) persist() {
@@ -49,7 +50,7 @@ func (a *App) done() bool { return a.save.Trecho >= len(a.routes) }
 
 func (a *App) startTrecho() {
 	rt := a.routes[a.save.Trecho]
-	a.game = NewGame(rt, a.save.Dinheiro, a.save.Gasolina, a.save.Melhorias)
+	a.game = game.NewGame(rt, a.save.Dinheiro, a.save.Gasolina, a.save.Melhorias)
 	a.in = termInput{kb: a.kb}
 	a.view = view{}
 	if cp := a.save.Parada; cp != nil && cp.Trecho == a.save.Trecho {
@@ -60,7 +61,7 @@ func (a *App) startTrecho() {
 
 // saveStop grava a parada no meio do trecho (se estiver dirigindo).
 func (a *App) saveStop() {
-	if a.scr == scDrive && a.game.State == Playing {
+	if a.scr == scDrive && a.game.State == game.Playing {
 		a.save.Parada = a.game.Checkpoint(a.save.Trecho)
 		a.persist()
 	}
@@ -98,7 +99,7 @@ func (a *App) key(ev *tcell.EventKey) bool {
 	case scTitle:
 		if a.confirm {
 			if r == 's' {
-				a.save = NewSave()
+				a.save = game.NewSave()
 				a.persist()
 			}
 			a.confirm = false
@@ -116,30 +117,30 @@ func (a *App) key(ev *tcell.EventKey) bool {
 		g := a.game
 		switch {
 		case k == tcell.KeyEscape || r == 'q':
-			if g.State == Arrived {
+			if g.State == game.Arrived {
 				a.finishTrecho()
 			} else {
 				a.saveStop()
 			}
 			a.scr = scTitle
-		case r == 'p' && g.State == Playing:
+		case r == 'p' && g.State == game.Playing:
 			g.Paused = !g.Paused
 		case g.Paused:
-		case r == 'c' && g.State == Playing:
+		case r == 'c' && g.State == game.Playing:
 			g.ToggleCruise()
-		case g.State == Arrived && enter:
+		case g.State == game.Arrived && enter:
 			a.finishTrecho()
-		case g.State == OutOfFuel && r == 'g':
+		case g.State == game.OutOfFuel && r == 'g':
 			g.Tow()
-		case g.State == OutOfFuel && r == 'r':
+		case g.State == game.OutOfFuel && r == 'r':
 			a.save.Parada = nil
 			a.persist()
 			a.startTrecho()
-		case g.State == Playing:
+		case g.State == game.Playing:
 			a.in.press(ev)
 		}
 	case scShop:
-		n := len(Upgrades) + 2 // + encher tanque + seguir
+		n := len(game.Upgrades) + 2 // + encher tanque + seguir
 		switch {
 		case k == tcell.KeyEscape || r == 'q':
 			a.scr = scTitle
@@ -158,13 +159,13 @@ func (a *App) key(ev *tcell.EventKey) bool {
 	return false
 }
 
-func (a *App) tank() float64 { return MakeVehicle(&Route{}, a.save.Melhorias).Tank }
+func (a *App) tank() float64 { return game.MakeVehicle(&game.Route{}, a.save.Melhorias).Tank }
 
 func (a *App) shopSelect() {
 	sv := &a.save
 	switch {
-	case a.sel < len(Upgrades):
-		u := Upgrades[a.sel]
+	case a.sel < len(game.Upgrades):
+		u := game.Upgrades[a.sel]
 		switch {
 		case sv.Melhorias[u.ID]:
 			a.note = "Já tá instalado."
@@ -176,7 +177,7 @@ func (a *App) shopSelect() {
 			a.note = u.Nome + " instalado!"
 			a.persist()
 		}
-	case a.sel == len(Upgrades):
+	case a.sel == len(game.Upgrades):
 		price := a.routes[sv.Trecho].Gasolina
 		l := math.Min(a.tank()-sv.Gasolina, math.Max(sv.Dinheiro, 0)/price)
 		if l <= 0.05 {
@@ -300,7 +301,7 @@ func (a *App) shopLines() ([]string, string) {
 		}
 		return "  "
 	}
-	for i, u := range Upgrades {
+	for i, u := range game.Upgrades {
 		box := "[ ]"
 		if sv.Melhorias[u.ID] {
 			box = "[x]"
@@ -308,8 +309,8 @@ func (a *App) shopLines() ([]string, string) {
 		lines = append(lines, fmt.Sprintf("%s%s %s R$ %4.0f  %s", cur(i), box, pad(u.Nome, 22), u.Preco, u.Desc))
 	}
 	lines = append(lines, "",
-		fmt.Sprintf("%sEncher o tanque (R$ %.2f/L)", cur(len(Upgrades)), next.Gasolina),
-		cur(len(Upgrades)+1)+"Seguir viagem →")
+		fmt.Sprintf("%sEncher o tanque (R$ %.2f/L)", cur(len(game.Upgrades)), next.Gasolina),
+		cur(len(game.Upgrades)+1)+"Seguir viagem →")
 	return lines, "↑↓ escolhe · Enter compra/segue · q menu"
 }
 
@@ -337,28 +338,28 @@ func (a *App) backdrop(s tcell.Screen, cols, rows int) {
 		a.bg = NewFrame(W, H)
 	}
 	f := a.bg
-	zen, hor := SkyColors(0.755)
+	zen, hor := game.SkyColors(0.755)
 	horizon := H * 3 / 5
 	for y := range H {
 		if y < horizon {
 			t := float64(y) / float64(horizon)
-			f.HLine(0, W-1, y, Mix(zen, hor, t*t))
+			f.HLine(0, W-1, y, game.Mix(zen, hor, t*t))
 			continue
 		}
 		t := float64(y-horizon) / float64(H-horizon)
-		f.HLine(0, W-1, y, Scale(GrassGreen[0], 0.5))
-		hw := Lerp(1, float64(W)*0.45, t)
-		f.Span(float64(W)/2-hw, float64(W)/2+hw, y, Scale(AsphaltGray[0], 0.6))
+		f.HLine(0, W-1, y, game.Scale(game.GrassGreen[0], 0.5))
+		hw := game.Lerp(1, float64(W)*0.45, t)
+		f.Span(float64(W)/2-hw, float64(W)/2+hw, y, game.Scale(game.AsphaltGray[0], 0.6))
 		if int(t*12)%2 == 0 {
-			f.Span(float64(W)/2-math.Max(hw/40, 0.5), float64(W)/2+math.Max(hw/40, 0.5), y, Scale(paint, 0.6))
+			f.Span(float64(W)/2-math.Max(hw/40, 0.5), float64(W)/2+math.Max(hw/40, 0.5), y, game.Scale(paint, 0.6))
 		}
 	}
 	f.Sprite(spr147, float64(W)/2, float64(H), float64(W)/5, float64(H)+1, nil,
-		func(ch byte, c RGB) RGB {
+		func(ch byte, c game.RGB) game.RGB {
 			if ch == 'R' {
-				return RGB{220, 50, 40}
+				return game.RGB{220, 50, 40}
 			}
-			return Scale(c, 0.6)
+			return game.Scale(c, 0.6)
 		})
 	f.Flush(s)
 }

@@ -1,9 +1,11 @@
-package main
+package term
 
 import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/chmenegatti/oiapoque-chui/game"
 )
 
 func TestFiltroKitty(t *testing.T) {
@@ -53,15 +55,15 @@ func TestFiltroTerminalComum(t *testing.T) {
 }
 
 // jogoDeTeste: BR-156 no km 20, sem tráfego, a meia velocidade.
-func jogoDeTeste(t *testing.T) *Game {
-	routes, err := LoadRoutes(os.DirFS("."))
+func jogoDeTeste(t *testing.T) *game.Game {
+	routes, err := game.LoadRoutes(os.DirFS(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	g := NewGame(routes[0], 1000, 30, nil)
+	g := game.NewGame(routes[0], 1000, 30, nil)
 	g.Pos = 20 * g.Upk
 	g.Cars = nil
-	g.Speed = MaxSpeed * 0.5
+	g.Speed = game.MaxSpeed * 0.5
 	return g
 }
 

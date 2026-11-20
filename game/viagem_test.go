@@ -1,4 +1,4 @@
-package main
+package game
 
 import (
 	"math"
@@ -9,7 +9,7 @@ import (
 // TestCampanha: o piloto automático faz as 10 etapas. Garante que toda
 // rota é vencível e que o balanço (tempo, gasolina, temperatura) faz sentido.
 func TestCampanha(t *testing.T) {
-	routes, err := LoadRoutes(os.DirFS("."))
+	routes, err := LoadRoutes(os.DirFS(".."))
 	if err != nil {
 		t.Fatal(err)
 	}

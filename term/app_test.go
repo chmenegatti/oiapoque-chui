@@ -1,9 +1,10 @@
-package main
+package term
 
 import (
 	"os"
 	"testing"
 
+	"github.com/chmenegatti/oiapoque-chui/game"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -13,14 +14,14 @@ func press(a *App, k tcell.Key, r rune) { a.key(tcell.NewEventKey(k, r, tcell.Mo
 func TestFluxo(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	t.Setenv("HOME", t.TempDir())
-	routes, err := LoadRoutes(os.DirFS("."))
+	routes, err := game.LoadRoutes(os.DirFS(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
 	s := tcell.NewSimulationScreen("UTF-8")
 	s.Init()
 	s.SetSize(140, 40)
-	a := NewApp(routes, SavePath())
+	a := NewApp(routes, game.SavePath())
 	frame := func() { a.tick(1.0 / 60); a.draw(s); s.Show() }
 
 	frame()
@@ -39,7 +40,7 @@ func TestFluxo(t *testing.T) {
 	// força a chegada
 	a.game.Pos = a.game.EndZ
 	frame()
-	if a.game.State != Arrived {
+	if a.game.State != game.Arrived {
 		t.Fatal("deveria ter chegado")
 	}
 	money := a.game.Money
@@ -47,7 +48,7 @@ func TestFluxo(t *testing.T) {
 	if a.scr != scShop || a.save.Trecho != 1 || a.save.Dinheiro != money {
 		t.Fatalf("esperava oficina com progresso salvo: scr=%d trecho=%d", a.scr, a.save.Trecho)
 	}
-	if got := LoadSave(SavePath()); got.Trecho != 1 {
+	if got := game.LoadSave(game.SavePath()); got.Trecho != 1 {
 		t.Fatalf("save em disco não atualizou: %+v", got)
 	}
 
@@ -63,7 +64,7 @@ func TestFluxo(t *testing.T) {
 
 	// seguir viagem → balsa
 	press(a, tcell.KeyUp, 0) // volta pro topo… e vai até "Seguir viagem"
-	a.sel = len(Upgrades) + 1
+	a.sel = len(game.Upgrades) + 1
 	press(a, tcell.KeyEnter, 0)
 	if a.scr != scDrive || !a.game.Route.Boat() {
 		t.Fatal("trecho 2 deveria ser a balsa")
@@ -82,12 +83,12 @@ func TestFluxo(t *testing.T) {
 	for range 30 {
 		frame()
 	}
-	if a.game.State != OutOfFuel {
+	if a.game.State != game.OutOfFuel {
 		t.Fatalf("sem gasolina e parado = pane seca (state=%d)", a.game.State)
 	}
 	before := a.game.Money
 	press(a, tcell.KeyRune, 'g')
-	if a.game.State != Playing || a.game.Fuel != GuinchoL || a.game.Money != before-GuinchoPreco {
+	if a.game.State != game.Playing || a.game.Fuel != game.GuinchoL || a.game.Money != before-game.GuinchoPreco {
 		t.Fatal("guincho deveria cobrar e pôr gasolina")
 	}
 	frame()
@@ -96,19 +97,19 @@ func TestFluxo(t *testing.T) {
 // TestParada: passar por cidade salva; p pausa; q sai salvando; Enter continua do mesmo km.
 func TestParada(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	routes, err := LoadRoutes(os.DirFS("."))
+	routes, err := game.LoadRoutes(os.DirFS(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := NewApp(routes, SavePath())
+	a := NewApp(routes, game.SavePath())
 	press(a, tcell.KeyEnter, 0)
 	g := a.game
-	g.Pos = 219.8*g.Upk - PlayerZ // logo antes de Calçoene (km 220)
-	g.Speed = MaxSpeed * 0.5
+	g.Pos = 219.8*g.Upk - game.PlayerZ // logo antes de Calçoene (km 220)
+	g.Speed = game.MaxSpeed * 0.5
 	for range 120 {
 		a.tick(1.0 / 60)
 	}
-	cp := LoadSave(SavePath()).Parada
+	cp := game.LoadSave(game.SavePath()).Parada
 	if cp == nil || cp.Km < 220 || cp.Km > 222 {
 		t.Fatalf("passar por Calçoene deveria salvar parada: %+v", cp)
 	}
@@ -127,7 +128,7 @@ func TestParada(t *testing.T) {
 		t.Fatal("q deveria voltar ao menu")
 	}
 
-	b := NewApp(routes, SavePath()) // "reabre o jogo"
+	b := NewApp(routes, game.SavePath()) // "reabre o jogo"
 	press(b, tcell.KeyEnter, 0)
 	if d := b.game.Km() - km; d < -0.01 || d > 0.01 || b.game.Money != 777 {
 		t.Fatalf("deveria continuar do km %.2f com R$ 777: km %.2f R$ %.0f", km, b.game.Km(), b.game.Money)

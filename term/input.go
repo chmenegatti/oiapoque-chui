@@ -1,4 +1,4 @@
-package main
+package term
 
 import (
 	"strconv"
@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chmenegatti/oiapoque-chui/game"
 	"github.com/gdamore/tcell/v2"
 	"github.com/gdamore/tcell/v2/terminfo"
 )
@@ -255,8 +256,8 @@ func (t *termInput) held(a action, now time.Time) bool {
 	return t.keys[a].held(now)
 }
 
-func (t *termInput) controls(now time.Time) Controls {
-	in := Controls{Up: t.held(actUp, now), Down: t.held(actDown, now), Left: t.held(actLeft, now), Right: t.held(actRight, now)}
+func (t *termInput) controls(now time.Time) game.Controls {
+	in := game.Controls{Up: t.held(actUp, now), Down: t.held(actDown, now), Left: t.held(actLeft, now), Right: t.held(actRight, now)}
 	if !t.kb.Active() {
 		steering := in.Left || in.Right
 		if in.Up || !steering {

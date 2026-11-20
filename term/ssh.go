@@ -1,4 +1,4 @@
-package main
+package term
 
 import (
 	"context"
@@ -17,13 +17,14 @@ import (
 	"charm.land/wish/v2"
 	"charm.land/wish/v2/activeterm"
 	"charm.land/wish/v2/logging"
+	"github.com/chmenegatti/oiapoque-chui/game"
 	"github.com/gdamore/tcell/v2"
 	gossh "golang.org/x/crypto/ssh"
 )
 
 // serveSSH serve o jogo por ssh: `ssh -p 2323 host`. Cada sessão tem seu
 // próprio jogo; quem entra com chave pública tem progresso salvo em saves/.
-func ServeSSH(addr string, routes []*Route) error {
+func ServeSSH(addr string, routes []*game.Route) error {
 	os.Setenv("COLORTERM", "truecolor") // terminais modernos aguentam; tcell lê daqui
 	srv, err := wish.NewServer(
 		wish.WithAddress(addr),
@@ -57,7 +58,7 @@ func ServeSSH(addr string, routes []*Route) error {
 	return srv.Shutdown(ctx)
 }
 
-func gameMiddleware(routes []*Route) wish.Middleware {
+func gameMiddleware(routes []*game.Route) wish.Middleware {
 	return func(next ssh.Handler) ssh.Handler {
 		return func(sess ssh.Session) {
 			pty, winCh, _ := sess.Pty()
