@@ -11,12 +11,21 @@ import (
 
 func main() {
 	addr := flag.String("ssh", "", "serve o jogo por ssh neste endereço (ex: :2323)")
+	mode3d := flag.Bool("3d", false, "abre a versão 3D em janela (protótipo)")
+	trecho := flag.Int("trecho", 8, "trecho da versão 3D (1 a 10)")
 	flag.Parse()
 
 	routes, err := loadRoutes()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "erro ao carregar rotas:", err)
 		os.Exit(1)
+	}
+	if *mode3d {
+		if err := run3D(routes, *trecho); err != nil {
+			fmt.Fprintln(os.Stderr, "erro na versão 3D:", err)
+			os.Exit(1)
+		}
+		return
 	}
 	if *addr != "" {
 		if err := serveSSH(*addr, routes); err != nil {

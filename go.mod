@@ -6,6 +6,9 @@ require (
 	charm.land/ssh v0.4.3
 	charm.land/wish/v2 v2.0.5
 	github.com/gdamore/tcell/v2 v2.13.10
+	github.com/gogpu/gogpu v0.54.1
+	github.com/gogpu/gputypes v0.8.2
+	github.com/gogpu/wgpu v0.34.9
 	golang.org/x/crypto v0.57.0
 )
 
@@ -28,6 +31,10 @@ require (
 	github.com/creack/pty v1.1.24 // indirect
 	github.com/gdamore/encoding v1.0.1 // indirect
 	github.com/go-logfmt/logfmt v0.6.1 // indirect
+	github.com/go-webgpu/goffi v0.6.8 // indirect
+	github.com/go-webgpu/webgpu v0.5.5 // indirect
+	github.com/gogpu/gpucontext v0.31.3 // indirect
+	github.com/gogpu/naga v0.21.4 // indirect
 	github.com/lucasb-eyer/go-colorful v1.4.1 // indirect
 	github.com/mattn/go-runewidth v0.0.30 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
