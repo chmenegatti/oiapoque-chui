@@ -20,6 +20,8 @@ const (
 type track struct {
 	pos  []vec3
 	head []float64
+	raw  [][2]float32 // reachRaw memorizado (0 = ainda não calculado)
+	grid map[[2]int32][]int32
 }
 
 func buildTrack(r *game.Road) *track {
@@ -35,7 +37,91 @@ func buildTrack(r *game.Road) *track {
 	}
 	t.pos[n] = vec3{x, r.Segs[n-1].Y2 * ws, z}
 	t.head[n] = th
+	t.near(vec3{}, 0, func(int) {}) // monta a grade agora, não no primeiro quadro
 	return t
+}
+
+// Limite lateral do terreno. Na serra a estrada dá voltas de 180° e a faixa
+// de relevo de um trecho (até 160 meias-pistas para cada lado) passaria por
+// cima de outro trecho, ou dobraria sobre si mesma por dentro da curva. Cada
+// ponto do terreno fica com o trecho de estrada mais próximo: o lado vai até
+// a fronteira com o outro trecho (diagrama de Voronoi). Para pontos da mesma
+// curva a fronteira dá o raio dela, que é onde o lado de dentro dobraria.
+const (
+	reachMax  = 160.0 // meias-pistas
+	reachStep = 6     // amostragem da estrada na grade
+	reachCell = 512.0 // lado da célula da grade, em unidades 3D
+	reachKeep = 6     // janela do mínimo, para o limite não serrilhar
+)
+
+func cellOf(p vec3) [2]int32 {
+	return [2]int32{int32(math.Floor(p.x / reachCell)), int32(math.Floor(p.z / reachCell))}
+}
+
+// near chama fn para cada amostra da estrada a até rad unidades de p.
+func (t *track) near(p vec3, rad float64, fn func(j int)) {
+	if t.grid == nil {
+		t.grid = map[[2]int32][]int32{}
+		for j := 0; j < len(t.pos); j += reachStep {
+			c := cellOf(t.pos[j])
+			t.grid[c] = append(t.grid[c], int32(j))
+		}
+	}
+	lo, hi := cellOf(p.sub(vec3{rad, 0, rad})), cellOf(p.add(vec3{rad, 0, rad}))
+	for cx := lo[0]; cx <= hi[0]; cx++ {
+		for cz := lo[1]; cz <= hi[1]; cz++ {
+			for _, j := range t.grid[[2]int32{cx, cz}] {
+				fn(int(j))
+			}
+		}
+	}
+}
+
+// reachRaw: até onde (em meias-pistas) vão o lado esquerdo e o direito do
+// segmento n antes de encostar no terreno de outro trecho.
+func (t *track) reachRaw(n int) [2]float64 {
+	if t.raw == nil {
+		t.raw = make([][2]float32, len(t.pos))
+	}
+	if v := t.raw[n]; v[0] != 0 {
+		return [2]float64{float64(v[0]), float64(v[1])}
+	}
+	lim := [2]float64{reachMax * hw, reachMax * hw}
+	_, r := dirs(t.head[n])
+	// um trecho a mais de 2×alcance não limita nada
+	t.near(t.pos[n], 2*reachMax*hw, func(j int) {
+		p := t.pos[j].sub(t.pos[n])
+		p.y = 0
+		d2 := p.dot(p)
+		if d2 < 1 {
+			return
+		}
+		a := p.dot(r) // componente lateral; > 0 à direita
+		side := 1
+		if a < 0 {
+			side, a = 0, -a
+		}
+		if a < 1e-6 {
+			return
+		}
+		// o ponto a x da pista fica mais perto de j quando x > |p|²/(2a)
+		lim[side] = min(lim[side], d2/(2*a))
+	})
+	out := [2]float64{lim[0] / hw, lim[1] / hw}
+	t.raw[n] = [2]float32{float32(out[0]), float32(out[1])}
+	return out
+}
+
+// reach: reachRaw suavizado (mínimo numa janela), nunca cortando a pista e
+// o acostamento.
+func (t *track) reach(n int, bank float64) (left, right float64) {
+	left, right = reachMax, reachMax
+	for j := max(0, n-reachKeep); j <= min(len(t.pos)-1, n+reachKeep); j++ {
+		v := t.reachRaw(j)
+		left, right = min(left, v[0]), min(right, v[1])
+	}
+	floor := bank + 0.3
+	return max(left*0.97, floor), max(right*0.97, floor)
 }
 
 func dirs(th float64) (fwd, right vec3) {
@@ -55,12 +141,14 @@ func (t *track) frame(z float64) (c, fwd, right vec3) {
 
 // ---------- malha ----------
 
-// mesh acumula triângulos com normal e cor (9 floats por vértice), já
-// relativos à câmera (origin). Sem índice: cada face tem normal própria
-// (sombreamento chapado, combina com o low-poly).
+// mesh acumula vértices (posição, normal, cor: 9 floats) e índices, já
+// relativos a origin. Cada face tem vértices próprios com a normal dela
+// (sombreamento chapado, combina com o low-poly); o quad reaproveita 2
+// vértices via índice. A normal pode sair de qualquer lado: o shader a vira
+// para a câmera (iluminação dos dois lados).
 type mesh struct {
 	f      []float32
-	n      uint32
+	idx    []uint32
 	origin vec3
 }
 
@@ -79,24 +167,37 @@ func glow(c game.RGB) color3 {
 
 func (c color3) mul(k float32) color3 { return color3{c[0] * k, c[1] * k, c[2] * k} }
 
-func (m *mesh) reset(origin vec3) { m.f, m.n, m.origin = m.f[:0], 0, origin }
+func (m *mesh) reset(origin vec3) { m.f, m.idx, m.origin = m.f[:0], m.idx[:0], origin }
+
+func (m *mesh) nv() uint32 { return uint32(len(m.f) / 9) }
+
+func (m *mesh) vert(p, n vec3, k color3) {
+	p = p.sub(m.origin)
+	m.f = append(m.f, float32(p.x), float32(p.y), float32(p.z),
+		float32(n.x), float32(n.y), float32(n.z), k[0], k[1], k[2])
+}
 
 func (m *mesh) tri(a, b, c vec3, k color3) {
-	a, b, c = a.sub(m.origin), b.sub(m.origin), c.sub(m.origin)
 	n := b.sub(a).cross(c.sub(a)).norm()
-	if n.dot(a.add(b).add(c)) > 0 { // iluminação dos dois lados: normal virada pra câmera
-		n = n.mul(-1)
-	}
-	for _, p := range [3]vec3{a, b, c} {
-		m.f = append(m.f, float32(p.x), float32(p.y), float32(p.z),
-			float32(n.x), float32(n.y), float32(n.z), k[0], k[1], k[2])
-	}
-	m.n += 3
+	i := m.nv()
+	m.vert(a, n, k)
+	m.vert(b, n, k)
+	m.vert(c, n, k)
+	m.idx = append(m.idx, i, i+1, i+2)
 }
 
 func (m *mesh) quad(a, b, c, d vec3, k color3) {
-	m.tri(a, b, c, k)
-	m.tri(a, c, d, k)
+	n := b.sub(a).cross(c.sub(a))
+	if n.dot(n) < 1e-12 { // triângulo abc degenerado: usa acd
+		n = c.sub(a).cross(d.sub(a))
+	}
+	n = n.norm()
+	i := m.nv()
+	m.vert(a, n, k)
+	m.vert(b, n, k)
+	m.vert(c, n, k)
+	m.vert(d, n, k)
+	m.idx = append(m.idx, i, i+1, i+2, i, i+2, i+3)
 }
 
 // box: caixa com base centrada em base, eixos r (largura), u (altura) e f
@@ -116,8 +217,10 @@ func (m *mesh) box(base, r, u, f vec3, hx, h, hz float64, k color3) {
 
 // ---------- cena ----------
 
+// Distância de visão: 1 unidade 3D ≈ 18 cm, segmento = 2 unidades ≈ 35 cm,
+// então 1,5 km ≈ 4300 segmentos à frente.
 const (
-	ahead3D  = 420 // segmentos desenhados à frente
+	ahead3D  = 4300
 	behind3D = 25
 )
 
@@ -141,8 +244,8 @@ func rise(ter *game.TerrainCfg, x float64, i, side int) float64 {
 	return h * math.Pow(t, 1.4)
 }
 
-func (sc *scene3d) segment(i int, g *game.Game) {
-	r, t, m := g.Road, sc.trk, &sc.m
+// segment: chão, acostamento, relevo e pintura do segmento i.
+func (t *track) segment(m *mesh, r *game.Road, i int, twoWay bool) {
 	seg := &r.Segs[i]
 	ter := seg.Ter
 	alt := (i / game.RumbleLen) % 2
@@ -156,6 +259,19 @@ func (sc *scene3d) segment(i int, g *game.Game) {
 		col(ter.Shoulder[alt]), col(ter.Grass[alt]), far, far.mul(0.85)}
 	_, r1 := dirs(t.head[i])
 	_, r2 := dirs(t.head[i+1])
+	clampX := func(n int) [len(xs)]float64 {
+		l, rr := t.reach(n, bank)
+		c := xs
+		for k, x := range c {
+			if x < 0 {
+				c[k] = max(x, -l)
+			} else {
+				c[k] = min(x, rr)
+			}
+		}
+		return c
+	}
+	x1, x2 := clampX(i), clampX(i+1)
 	pt := func(n int, rt vec3, x float64) vec3 {
 		side := 0
 		if x < 0 {
@@ -164,7 +280,10 @@ func (sc *scene3d) segment(i int, g *game.Game) {
 		return t.pos[n].add(rt.mul(x * hw)).add(up3.mul(rise(ter, x, n, side)))
 	}
 	for k := range cols {
-		m.quad(pt(i, r1, xs[k]), pt(i, r1, xs[k+1]), pt(i+1, r2, xs[k+1]), pt(i+1, r2, xs[k]), cols[k])
+		if x1[k] == x1[k+1] && x2[k] == x2[k+1] {
+			continue // faixa cortada pelo limite
+		}
+		m.quad(pt(i, r1, x1[k]), pt(i, r1, x1[k+1]), pt(i+1, r2, x2[k+1]), pt(i+1, r2, x2[k]), cols[k])
 	}
 	if !ter.Paint {
 		return
@@ -177,7 +296,7 @@ func (sc *scene3d) segment(i int, g *game.Game) {
 	line(-1, -0.965, paint3D)
 	line(0.965, 1, paint3D)
 	switch {
-	case g.Route.TwoWay():
+	case twoWay:
 		line(-0.05, -0.02, yellow3D)
 		line(0.02, 0.05, yellow3D)
 	case alt == 0:
@@ -189,15 +308,14 @@ func shade(i int, x float64) float32 { // variação de cor por objeto
 	return 0.85 + float32(hash3D(i, int(x*97))%30)/100
 }
 
-// prop: modelos low-poly do cenário, montados com caixas.
-func (sc *scene3d) prop(i int, p game.Prop) {
-	m, t := &sc.m, sc.trk
-	fwd, r := dirs(t.head[i])
-	at := t.pos[i].add(r.mul(p.X * hw))
-	w := p.W * hw
-	v := shade(i, p.X)
+// propMesh: modelo low-poly de um tipo de objeto, montado com caixas, na
+// origem e em tamanho unitário (w=1). Cada objeto da estrada é uma
+// instância dele: posição, giro, escala (propInst) e variação de cor.
+func propMesh(m *mesh, kind game.PropKind) {
+	at, r, fwd := vec3{}, vec3{1, 0, 0}, vec3{0, 0, 1}
+	const w, v = 1.0, float32(1)
 	trunk := col(game.RGB{95, 65, 38})
-	switch p.Kind {
+	switch kind {
 	case game.PropTree:
 		m.box(at, r, up3, fwd, w*0.06, w*0.7, w*0.06, trunk)
 		m.box(at.add(up3.mul(w*0.5)), r, up3, fwd, w*0.5, w*0.75, w*0.5, col(game.RGB{40, 112, 46}).mul(v))
@@ -242,6 +360,24 @@ func (sc *scene3d) prop(i int, p game.Prop) {
 	}
 }
 
+// propScale: escala da instância. Marco, radar e placa têm medida fixa; o
+// tronco caído só estica na largura; o resto cresce por inteiro.
+func propScale(p game.Prop) vec3 {
+	w := p.W * hw
+	switch p.Kind {
+	case game.PropKm, game.PropRadar, game.PropSpeedSign:
+		return vec3{1, 1, 1}
+	case game.PropLog:
+		return vec3{w, 1, 1}
+	}
+	return vec3{w, w, w}
+}
+
+// propKinds: tipos com modelo 3D, na ordem dos desenhos.
+var propKinds = []game.PropKind{game.PropTree, game.PropAcai, game.PropBanana, game.PropPequi,
+	game.PropCow, game.PropCitySign, game.PropGasStation, game.PropKm, game.PropRadar,
+	game.PropSpeedSign, game.PropLog}
+
 type dims3D struct{ len, h float64 }
 
 var vehDims = map[*game.VehKind]dims3D{
@@ -250,7 +386,7 @@ var vehDims = map[*game.VehKind]dims3D{
 
 // vehicle: carro do tráfego. dir=-1 vem de frente (faróis pra câmera).
 func (sc *scene3d) vehicle(c game.Car, night bool) {
-	m := &sc.m
+	m := &sc.dyn
 	center, fwd, r := sc.trk.frame(c.Z)
 	pos := center.add(r.mul(c.X * hw))
 	d := vehDims[c.Kind]
@@ -289,7 +425,7 @@ func (sc *scene3d) vehicle(c game.Car, night bool) {
 
 // player: o 147 (ou a balsa com o 147 em cima).
 func (sc *scene3d) player(g *game.Game, night bool) {
-	m := &sc.m
+	m := &sc.dyn
 	center, fwd, r := sc.trk.frame(g.Pos + game.PlayerZ)
 	pos := center.add(r.mul(g.PlayerX * hw))
 	if g.Bmp > 0 || (math.Abs(g.PlayerX) > 1 && g.Speed > 0) {
@@ -323,13 +459,16 @@ func (sc *scene3d) player(g *game.Game, night bool) {
 	}
 }
 
+// scene3d: o que muda a cada quadro (câmera, tráfego e o 147). Estrada,
+// relevo e cenário ficam nos blocos estáticos (chunks.go).
 type scene3d struct {
 	trk *track
-	m   mesh
+	dyn mesh
 }
 
-// build monta a cena do quadro. Devolve câmera, direção e posição/direção do farol.
-func (sc *scene3d) build(g *game.Game) (cam, look, headPos, headDir vec3) {
+// camera devolve posição da câmera, direção do olhar e posição/direção do
+// farol (relativas à câmera).
+func (sc *scene3d) camera(g *game.Game) (cam, look, headPos, headDir vec3) {
 	camZ := g.Pos + game.PlayerZ - 3600
 	cc, _, cr := sc.trk.frame(camZ)
 	cam = cc.add(cr.mul(g.PlayerX * hw * 0.9)).add(up3.mul(13))
@@ -342,19 +481,14 @@ func (sc *scene3d) build(g *game.Game) (cam, look, headPos, headDir vec3) {
 	pc, pf, pr := sc.trk.frame(g.Pos + game.PlayerZ + 900)
 	headPos = pc.add(pr.mul(g.PlayerX * hw)).add(up3.mul(3)).sub(cam)
 	headDir = pf.add(up3.mul(-0.07)).norm()
+	return
+}
 
-	sc.m.reset(cam)
-	r := g.Road
+// dynamic monta tráfego e jogador, relativos à câmera.
+func (sc *scene3d) dynamic(g *game.Game, cam vec3) {
+	sc.dyn.reset(cam)
 	base := int(g.Pos / game.SegLen)
-	from, to := max(base-behind3D, 0), min(base+ahead3D, len(r.Segs)-1)
-	for i := from; i < to; i++ {
-		sc.segment(i, g)
-	}
-	for i := from; i < to; i++ {
-		for _, p := range r.Segs[i].Props {
-			sc.prop(i, p)
-		}
-	}
+	from, to := max(base-behind3D, 0), min(base+ahead3D, len(g.Road.Segs)-1)
 	night := game.Daylight(g.Tod) < 0.6
 	for _, c := range g.Cars {
 		if s := int(c.Z / game.SegLen); s >= from && s < to {
@@ -362,7 +496,6 @@ func (sc *scene3d) build(g *game.Game) (cam, look, headPos, headDir vec3) {
 		}
 	}
 	sc.player(g, night)
-	return
 }
 
 func hash3D(x, y int) uint32 {

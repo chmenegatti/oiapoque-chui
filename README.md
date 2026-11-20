@@ -194,7 +194,9 @@ Tipos de terreno: `urbano`, `ondulado`, `serra`, `bananal`, `terra`, `floresta`,
 
 ```bash
 go test ./...                                    # todos os testes
-go run . -3d -trecho 8                           # protótipo da versão 3D (WebGPU)
+go run . -3d -trecho 8                           # protótipo da versão 3D (WebGPU); F3 mostra FPS e draws no título
+go run . -3d -trecho 8 -bench 30s                # piloto automático por 30 s e relatório de FPS e tempos de quadro
+go run . -3d -trecho 1 -shot quadro.png          # grava um quadro do 3D em PNG e fecha
 SNAP=1 go test -run TestSnap ./term              # imagens das cenas em snap/
 DEMO=1 go test -run TestDemoGIF ./term           # regera docs/demo.gif (Go puro, sem dependências)
 vhs demo.tape                                    # grava o terminal real, com painel (precisa do vhs)

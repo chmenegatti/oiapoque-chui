@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"slices"
 	"time"
-	"unsafe"
 
 	"github.com/chmenegatti/oiapoque-chui/game"
 	"github.com/gogpu/gogpu"
@@ -37,13 +37,27 @@ struct VOut {
   @location(2) wp: vec3<f32>,
 };
 
+// Instância: deslocamento até a câmera, eixos direita/frente no plano
+// (y é sempre "cima"), escala por eixo e variação de cor. Os blocos de
+// estrada e a malha do tráfego são uma instância identidade.
+struct Inst {
+  @location(3) off: vec3<f32>,
+  @location(4) rf: vec4<f32>,  // xy = direita.xz, zw = frente.xz
+  @location(5) scale: vec3<f32>,
+  @location(6) tint: f32,
+};
+
 @vertex
-fn vs_world(@location(0) p: vec3<f32>, @location(1) n: vec3<f32>, @location(2) c: vec3<f32>) -> VOut {
+fn vs_world(@location(0) p: vec3<f32>, @location(1) n: vec3<f32>, @location(2) c: vec3<f32>, it: Inst) -> VOut {
+  let r = vec3<f32>(it.rf.x, 0.0, it.rf.y);
+  let f = vec3<f32>(it.rf.z, 0.0, it.rf.w);
+  let lp = p * it.scale;
+  let wp = it.off + r * lp.x + vec3<f32>(0.0, lp.y, 0.0) + f * lp.z;
   var o: VOut;
-  o.pos = u.viewProj * vec4<f32>(p, 1.0);
-  o.col = c;
-  o.n = n;
-  o.wp = p;
+  o.pos = u.viewProj * vec4<f32>(wp, 1.0);
+  o.col = select(c * it.tint, c, c.r > 1.5);
+  o.n = r * n.x + vec3<f32>(0.0, n.y, 0.0) + f * n.z;
+  o.wp = wp;
   return o;
 }
 
@@ -57,7 +71,8 @@ fn fs_world(i: VOut) -> @location(0) vec4<f32> {
   if (i.col.r > 1.5) { // emissiva: lanterna, farol
     return vec4<f32>(fog(i.col - vec3<f32>(2.0), i.wp * 0.6), 1.0);
   }
-  let n = normalize(i.n);
+  var n = normalize(i.n);
+  if (dot(n, i.wp) > 0.0) { n = -n; } // iluminação dos dois lados: normal virada pra câmera
   var light = vec3<f32>(u.sunDir.w) + u.sunCol.rgb * max(dot(n, u.sunDir.xyz), 0.0);
   let toP = i.wp - u.headPos.xyz;
   let dist = length(toP);
@@ -102,9 +117,13 @@ fn fs_sky(i: SOut) -> @location(0) vec4<f32> {
 
 const (
 	vertexBytes  = 9 * 4
+	instFloats   = 11
+	instBytes    = instFloats * 4
 	uniformBytes = 64 + 10*16
-	depthFormat  = gputypes.TextureFormatDepth24Plus
-	fovY         = 58 * math.Pi / 180
+	// profundidade invertida (perto = 1, infinito = 0) em float: precisão
+	// boa de 0,8 unidade até o horizonte, sem z-fighting na pintura.
+	depthFormat = gputypes.TextureFormatDepth32Float
+	fovY        = 58 * math.Pi / 180
 )
 
 type renderer3d struct {
@@ -113,23 +132,55 @@ type renderer3d struct {
 	layout     *wgpu.PipelineLayout
 	bgl        *wgpu.BindGroupLayout
 	bg         *wgpu.BindGroup
-	ubuf, vbuf *wgpu.Buffer
-	vcap       uint64
+	ubuf       *wgpu.Buffer
 	depth      *wgpu.Texture
 	depthView  *wgpu.TextureView
 	dw, dh     int
 	scene      scene3d
 	ubytes     []byte
+	format     gputypes.TextureFormat
+
+	chunks *chunkPool
+
+	// tráfego e 147, remontados a cada quadro
+	dynV, dynI       *wgpu.Buffer
+	dynVCap, dynICap uint64
+
+	// modelos unitários dos objetos num buffer só
+	propV, propI *wgpu.Buffer
+	propRange    map[game.PropKind][2]uint32 // primeiro índice, quantidade
+
+	inst    []float32 // instâncias do quadro
+	instBuf *wgpu.Buffer
+	instCap uint64
+	byKind  map[game.PropKind][]float32
+
+	vis    []visChunk
+	kindAt []kindSpan
+
+	stats frameStats
 }
 
-func newRenderer3D(dev *wgpu.Device, format gputypes.TextureFormat, trk *track) (*renderer3d, error) {
-	r := &renderer3d{dev: dev, scene: scene3d{trk: trk}, ubytes: make([]byte, uniformBytes)}
+// kindSpan: instâncias de um tipo de objeto, contíguas no buffer.
+type kindSpan struct {
+	kind     game.PropKind
+	first, n int
+}
+
+// frameStats: contadores do último quadro (para o título e o -bench).
+type frameStats struct {
+	draws, chunks, visible, built, props, tris int
+}
+
+func newRenderer3D(dev *wgpu.Device, format gputypes.TextureFormat, trk *track, g *game.Game) (*renderer3d, error) {
+	r := &renderer3d{dev: dev, format: format, scene: scene3d{trk: trk}, ubytes: make([]byte, uniformBytes),
+		chunks: newChunkPool(dev, trk, g.Road, g.Route.TwoWay()), byKind: map[game.PropKind][]float32{}}
 	var err error
 	if r.ubuf, err = dev.CreateBuffer(&wgpu.BufferDescriptor{Label: "uniforms", Size: 256,
 		Usage: wgpu.BufferUsageUniform | wgpu.BufferUsageCopyDst}); err != nil {
 		return nil, err
 	}
-	if err = r.growVertices(8 << 20); err != nil {
+	if err = r.buildProps(); err != nil {
 		return nil, err
 	}
 	mod, err := dev.CreateShaderModule(&wgpu.ShaderModuleDescriptor{WGSL: shader3D})
@@ -166,9 +217,18 @@ func newRenderer3D(dev *wgpu.Device, format gputypes.TextureFormat, trk *track) 
 				{Format: gputypes.VertexFormatFloat32x3, Offset: 12, ShaderLocation: 1},
 				{Format: gputypes.VertexFormatFloat32x3, Offset: 24, ShaderLocation: 2},
 			},
+		}, {
+			ArrayStride: instBytes,
+			StepMode:    gputypes.VertexStepModeInstance,
+			Attributes: []gputypes.VertexAttribute{
+				{Format: gputypes.VertexFormatFloat32x3, Offset: 0, ShaderLocation: 3},
+				{Format: gputypes.VertexFormatFloat32x4, Offset: 12, ShaderLocation: 4},
+				{Format: gputypes.VertexFormatFloat32x3, Offset: 28, ShaderLocation: 5},
+				{Format: gputypes.VertexFormatFloat32, Offset: 40, ShaderLocation: 6},
+			},
 		}}},
 		Primitive:    gputypes.PrimitiveState{Topology: gputypes.PrimitiveTopologyTriangleList, CullMode: gputypes.CullModeNone},
-		DepthStencil: &wgpu.DepthStencilState{Format: depthFormat, DepthWriteEnabled: true, DepthCompare: gputypes.CompareFunctionLess},
+		DepthStencil: &wgpu.DepthStencilState{Format: depthFormat, DepthWriteEnabled: true, DepthCompare: gputypes.CompareFunctionGreater},
 		Fragment:     &wgpu.FragmentState{Module: mod, EntryPoint: "fs_world", Targets: target},
 	}); err != nil {
 		return nil, fmt.Errorf("pipeline do mundo: %w", err)
@@ -185,16 +245,41 @@ func newRenderer3D(dev *wgpu.Device, format gputypes.TextureFormat, trk *track) 
 	return r, nil
 }
 
-func (r *renderer3d) growVertices(size uint64) error {
-	if r.vbuf != nil {
-		r.vbuf.Release()
+// buildProps monta os modelos unitários de todos os tipos de objeto num
+// vertex/index buffer só; cada tipo vira um intervalo de índices.
+func (r *renderer3d) buildProps() error {
+	var m mesh
+	r.propRange = map[game.PropKind][2]uint32{}
+	for _, k := range propKinds {
+		first := uint32(len(m.idx))
+		propMesh(&m, k)
+		r.propRange[k] = [2]uint32{first, uint32(len(m.idx)) - first}
 	}
 	var err error
-	r.vbuf, err = r.dev.CreateBuffer(&wgpu.BufferDescriptor{Label: "vertices", Size: size,
-		Usage: wgpu.BufferUsageVertex | wgpu.BufferUsageCopyDst})
-	r.vcap = size
-	return err
+	if r.propV, _, err = ensureBuffer(r.dev, nil, 0, uint64(len(m.f)*4), wgpu.BufferUsageVertex, "objetos:vértices"); err != nil {
+		return err
+	}
+	if r.propI, _, err = ensureBuffer(r.dev, nil, 0, uint64(len(m.idx)*4), wgpu.BufferUsageIndex, "objetos:índices"); err != nil {
+		return err
+	}
+	q := r.dev.Queue()
+	q.WriteBuffer(r.propV, 0, floatBytes(m.f))
+	q.WriteBuffer(r.propI, 0, uintBytes(m.idx))
+	return nil
 }
+
+// addInst acrescenta uma instância em dst.
+func addInst(dst []float32, off, right, fwd, scale vec3, tint float32) []float32 {
+	return append(dst, float32(off.x), float32(off.y), float32(off.z),
+		float32(right.x), float32(right.z), float32(fwd.x), float32(fwd.z),
+		float32(scale.x), float32(scale.y), float32(scale.z), tint)
+}
+
+var (
+	idRight = vec3{1, 0, 0}
+	idFwd   = vec3{0, 0, 1}
+	idScale = vec3{1, 1, 1}
+)
 
 func (r *renderer3d) ensureDepth(w, h int) error {
 	if r.depth != nil && w == r.dw && h == r.dh {
@@ -239,13 +324,14 @@ func (r *renderer3d) frame(sv *wgpu.TextureView, w, h int, g *game.Game) error {
 	if err := r.ensureDepth(w, h); err != nil {
 		return err
 	}
-	cam, look, headPos, headDir := r.scene.build(g)
-	_ = cam
+	sc := &r.scene
+	cam, look, headPos, headDir := sc.camera(g)
+	sc.dynamic(g, cam)
 
 	// câmera
 	aspect := float64(w) / float64(h)
 	view, s, u, f := lookDir(look)
-	vp := perspective(fovY, aspect, 0.8, 2600).mul(view)
+	vp := perspectiveRevInf(fovY, aspect, 0.8).mul(view)
 	tanY := math.Tan(fovY / 2)
 
 	// luz e céu
@@ -256,8 +342,8 @@ func (r *renderer3d) frame(sv *wgpu.TextureView, w, h int, g *game.Game) error {
 	hor = game.Mix(hor, game.Scale(gray, day+0.2), g.RainD*0.7)
 	a := (g.Tod - 0.25) * 2 * math.Pi
 	sun := vec3{math.Cos(a) * 0.6, math.Sin(a), 0.45}.norm()
-	sc := game.Mix(game.RGB{255, 140, 60}, game.RGB{255, 245, 225}, game.Clamp(sun.y*4, 0, 1))
-	sr, sg, sb := rgbf(sc)
+	sunC := game.Mix(game.RGB{255, 140, 60}, game.RGB{255, 245, 225}, game.Clamp(sun.y*4, 0, 1))
+	sr, sg, sb := rgbf(sunC)
 	k := day * game.Clamp(sun.y*5+0.3, 0, 1)
 	hr, hg, hb := rgbf(hor)
 	zr, zg, zb := rgbf(zen)
@@ -270,7 +356,7 @@ func (r *renderer3d) frame(sv *wgpu.TextureView, w, h int, g *game.Game) error {
 	o := 64
 	o = putVec4(b, o, sun.x, sun.y, sun.z, 0.16+0.3*day)
 	o = putVec4(b, o, sr*k, sg*k, sb*k, day)
-	o = putVec4(b, o, hr, hg, hb, math.Sqrt(g.FogD)/750)
+	o = putVec4(b, o, hr, hg, hb, math.Sqrt(g.FogD)/7000)
 	o = putVec4(b, o, zr, zg, zb, 0)
 	o = putVec4(b, o, hr, hg, hb, 0)
 	o = putVec4(b, o, headPos.x, headPos.y, headPos.z, headI)
@@ -281,14 +367,8 @@ func (r *renderer3d) frame(sv *wgpu.TextureView, w, h int, g *game.Game) error {
 
 	q := r.dev.Queue()
 	q.WriteBuffer(r.ubuf, 0, b)
-	m := &r.scene.m
-	if n := uint64(len(m.f) * 4); n > 0 {
-		if n > r.vcap {
-			if err := r.growVertices(n * 2); err != nil {
-				return err
-			}
-		}
-		q.WriteBuffer(r.vbuf, 0, unsafe.Slice((*byte)(unsafe.Pointer(&m.f[0])), n))
+	if err := r.prepare(g, cam, makeFrustum(vp)); err != nil {
+		return err
 	}
 
 	enc, err := r.dev.CreateCommandEncoder(nil)
@@ -301,7 +381,7 @@ func (r *renderer3d) frame(sv *wgpu.TextureView, w, h int, g *game.Game) error {
 			ClearValue: gputypes.Color{R: hr, G: hg, B: hb, A: 1},
 		}},
 		DepthStencilAttachment: &wgpu.RenderPassDepthStencilAttachment{
-			View: r.depthView, DepthLoadOp: gputypes.LoadOpClear, DepthStoreOp: gputypes.StoreOpStore, DepthClearValue: 1,
+			View: r.depthView, DepthLoadOp: gputypes.LoadOpClear, DepthStoreOp: gputypes.StoreOpStore, DepthClearValue: 0,
 		},
 	})
 	if err != nil {
@@ -310,11 +390,7 @@ func (r *renderer3d) frame(sv *wgpu.TextureView, w, h int, g *game.Game) error {
 	rp.SetBindGroup(0, r.bg, nil)
 	rp.SetPipeline(r.sky)
 	rp.Draw(gputypes.DrawArgs{VertexCount: 3, InstanceCount: 1})
-	if m.n > 0 {
-		rp.SetPipeline(r.world)
-		rp.SetVertexBuffer(0, r.vbuf, 0)
-		rp.Draw(gputypes.DrawArgs{VertexCount: m.n, InstanceCount: 1})
-	}
+	r.drawWorld(rp)
 	rp.End()
 	cmds, err := enc.Finish()
 	if err != nil {
@@ -324,17 +400,130 @@ func (r *renderer3d) frame(sv *wgpu.TextureView, w, h int, g *game.Game) error {
 	return err
 }
 
+// visChunk: bloco visível neste quadro e o índice da instância dele.
+type visChunk struct {
+	c    *chunk
+	inst int
+}
+
+// prepare atualiza os blocos, descarta os fora do frustum, junta as
+// instâncias (tráfego, blocos, objetos por tipo) e envia tudo à GPU.
+func (r *renderer3d) prepare(g *game.Game, cam vec3, fr frustum) error {
+	st := &r.stats
+	*st = frameStats{}
+	base := int(g.Pos / game.SegLen)
+	from, to := max(base-behind3D, 0), min(base+ahead3D, len(g.Road.Segs)-1)
+	built, err := r.chunks.update(from, to)
+	if err != nil {
+		return err
+	}
+	st.built, st.chunks = built, len(r.chunks.live)
+
+	// instância 0: tráfego e 147 (já relativos à câmera)
+	r.inst = addInst(r.inst[:0], vec3{}, idRight, idFwd, idScale, 1)
+	r.vis = r.vis[:0]
+	for k := range r.byKind {
+		r.byKind[k] = r.byKind[k][:0]
+	}
+	for _, c := range r.chunks.live {
+		off := c.origin.sub(cam)
+		if !fr.visible(c.lo.add(off), c.hi.add(off)) {
+			continue
+		}
+		r.vis = append(r.vis, visChunk{c, len(r.inst) / instFloats})
+		r.inst = addInst(r.inst, off, idRight, idFwd, idScale, 1)
+		st.tris += int(c.nidx / 3)
+		for _, p := range c.props {
+			r.byKind[p.kind] = addInst(r.byKind[p.kind], p.at.add(off), p.right, p.fwd, p.scale, p.tint)
+		}
+	}
+	st.visible = len(r.vis)
+	r.kindAt = r.kindAt[:0]
+	for _, k := range propKinds {
+		if l := r.byKind[k]; len(l) > 0 {
+			r.kindAt = append(r.kindAt, kindSpan{k, len(r.inst) / instFloats, len(l) / instFloats})
+			r.inst = append(r.inst, l...)
+			n := len(l) / instFloats
+			st.props += n
+			st.tris += n * int(r.propRange[k][1]/3)
+		}
+	}
+
+	if r.instBuf, r.instCap, err = ensureBuffer(r.dev, r.instBuf, r.instCap, uint64(len(r.inst)*4), wgpu.BufferUsageVertex, "instâncias"); err != nil {
+		return err
+	}
+	d := &r.scene.dyn
+	if r.dynV, r.dynVCap, err = ensureBuffer(r.dev, r.dynV, r.dynVCap, uint64(len(d.f)*4), wgpu.BufferUsageVertex, "tráfego:vértices"); err != nil {
+		return err
+	}
+	if r.dynI, r.dynICap, err = ensureBuffer(r.dev, r.dynI, r.dynICap, uint64(len(d.idx)*4), wgpu.BufferUsageIndex, "tráfego:índices"); err != nil {
+		return err
+	}
+	q := r.dev.Queue()
+	q.WriteBuffer(r.instBuf, 0, floatBytes(r.inst))
+	q.WriteBuffer(r.dynV, 0, floatBytes(d.f))
+	q.WriteBuffer(r.dynI, 0, uintBytes(d.idx))
+	st.tris += len(d.idx) / 3
+	return nil
+}
+
+func (r *renderer3d) drawWorld(rp *wgpu.RenderPassEncoder) {
+	st := &r.stats
+	rp.SetPipeline(r.world)
+	inst := func(i int) { rp.SetVertexBuffer(1, r.instBuf, uint64(i*instBytes)) }
+	for _, v := range r.vis {
+		rp.SetVertexBuffer(0, v.c.vbuf, 0)
+		rp.SetIndexBuffer(v.c.ibuf, gputypes.IndexFormatUint32, 0)
+		inst(v.inst)
+		rp.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: v.c.nidx, InstanceCount: 1})
+		st.draws++
+	}
+	if len(r.kindAt) > 0 {
+		rp.SetVertexBuffer(0, r.propV, 0)
+		rp.SetIndexBuffer(r.propI, gputypes.IndexFormatUint32, 0)
+		for _, k := range r.kindAt {
+			rg := r.propRange[k.kind]
+			inst(k.first)
+			rp.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: rg[1], FirstIndex: rg[0], InstanceCount: uint32(k.n)})
+			st.draws++
+		}
+	}
+	if n := len(r.scene.dyn.idx); n > 0 {
+		rp.SetVertexBuffer(0, r.dynV, 0)
+		rp.SetIndexBuffer(r.dynI, gputypes.IndexFormatUint32, 0)
+		inst(0)
+		rp.DrawIndexed(gputypes.DrawIndexedArgs{IndexCount: uint32(n), InstanceCount: 1})
+		st.draws++
+	}
+}
+
 func (r *renderer3d) release() {
-	for _, x := range []interface{ Release() }{r.world, r.sky, r.layout, r.bg, r.bgl, r.ubuf, r.vbuf, r.depthView, r.depth} {
+	r.chunks.release()
+	for _, x := range []interface{ Release() }{r.world, r.sky, r.layout, r.bg, r.bgl, r.ubuf,
+		r.dynV, r.dynI, r.propV, r.propI, r.instBuf, r.depthView, r.depth} {
 		if x != nil {
 			x.Release()
 		}
 	}
 }
 
-// run3D abre a janela 3D num trecho (1..10). Mesma física, rotas e regras
+// Options3D: modos de medição da janela 3D.
+type Options3D struct {
+	// Bench > 0: o piloto automático dirige por esse tempo e, ao fechar,
+	// imprime FPS e tempos de quadro.
+	Bench time.Duration
+	// Shot: grava o último quadro neste PNG e fecha (no fim do Bench, ou
+	// depois de 5 s).
+	Shot string
+}
+
+// Run3D abre a janela 3D num trecho (1..10). Mesma física, rotas e regras
 // do jogo de terminal; só o desenho muda.
-func Run3D(routes []*game.Route, trecho int) error {
+func Run3D(routes []*game.Route, trecho int, opt Options3D) error {
+	bench := opt.Bench
+	if opt.Shot != "" && bench == 0 {
+		bench = 5 * time.Second
+	}
 	if trecho < 1 || trecho > len(routes) {
 		return fmt.Errorf("trecho %d não existe (1..%d)", trecho, len(routes))
 	}
@@ -350,6 +539,10 @@ func Run3D(routes []*game.Route, trecho int) error {
 	var r *renderer3d
 	last := time.Now()
 	var titleT float64
+	debug := bench > 0
+	stopped := map[float64]bool{}
+	var bm benchStats
+	start := time.Now()
 	app.OnDraw(func(dc *gogpu.Context) {
 		p := app.GPUContextProvider()
 		sv := dc.SurfaceView()
@@ -358,14 +551,16 @@ func Run3D(routes []*game.Route, trecho int) error {
 		}
 		if r == nil {
 			var err error
-			if r, err = newRenderer3D(wgpu.DeviceFromHandle(p.Device()), p.SurfaceFormat(), trk); err != nil {
+			if r, err = newRenderer3D(wgpu.DeviceFromHandle(p.Device()), p.SurfaceFormat(), trk, g); err != nil {
 				fmt.Println("erro no renderer 3D:", err)
 				app.Quit()
 				return
 			}
+			start = time.Now()
 		}
 		now := time.Now()
-		dt := min(now.Sub(last).Seconds(), 0.1)
+		frameDt := now.Sub(last)
+		dt := min(frameDt.Seconds(), 0.1)
 		last = now
 
 		k := app.Input().Keyboard()
@@ -384,17 +579,47 @@ func Run3D(routes []*game.Route, trecho int) error {
 			g.Paused = !g.Paused
 		case k.JustPressed(input.KeyG):
 			g.Tow()
+		case k.JustPressed(input.KeyF3):
+			debug = !debug
 		}
+		if bench > 0 {
+			in = game.Controls{}
+			game.Autopilot(g, stopped, dt)
+			if g.State == game.OutOfFuel {
+				g.Tow()
+			}
+		}
+		tu := time.Now()
 		g.Update(dt, in)
+		bm.upd = max(bm.upd, time.Since(tu))
 
 		w, h := app.PhysicalSize()
+		t0 := time.Now()
 		if err := r.frame(sv, w, h, g); err != nil {
 			fmt.Println("erro no quadro:", err)
 		}
+		cpu := time.Since(t0)
+		bm.add(frameDt, cpu, r.stats)
 
 		if titleT += dt; titleT > 0.25 {
 			titleT = 0
-			app.SetTitle(title3D(g))
+			t := title3D(g)
+			if debug {
+				t = bm.window() + " · " + t
+			}
+			app.SetTitle(t)
+		}
+		if bench > 0 && time.Since(start) > bench {
+			if opt.Bench > 0 {
+				fmt.Println(bm.report(time.Since(start), g))
+			}
+			if opt.Shot != "" {
+				if err := r.screenshot(opt.Shot, w, h, g); err != nil {
+					fmt.Println("erro na captura:", err)
+				}
+			}
+			app.Quit()
+			bench = 0
 		}
 	})
 	app.OnClose(func() {
@@ -425,4 +650,76 @@ func title3D(g *game.Game) string {
 		s = g.Msg + " · " + s
 	}
 	return s
+}
+
+// benchStats: tempos de quadro para o título (janela de 0,25 s) e para o
+// relatório do -bench (viagem inteira).
+type benchStats struct {
+	frames []time.Duration // intervalo entre quadros
+	cpu    time.Duration   // soma do tempo de montagem+envio no quadro
+	cpuMax time.Duration
+	upd    time.Duration // pior game.Update
+	last   frameStats
+	built  int
+	win    struct {
+		n   int
+		t   time.Duration
+		cpu time.Duration
+	}
+}
+
+func (b *benchStats) add(dt, cpu time.Duration, st frameStats) {
+	b.frames = append(b.frames, dt)
+	b.cpu += cpu
+	b.cpuMax = max(b.cpuMax, cpu)
+	b.last = st
+	b.built += st.built
+	b.win.n++
+	b.win.t += dt
+	b.win.cpu += cpu
+}
+
+// window: FPS e contadores desde a última chamada (para o título).
+func (b *benchStats) window() string {
+	w := &b.win
+	if w.n == 0 || w.t == 0 {
+		return ""
+	}
+	s := b.last
+	out := fmt.Sprintf("%.0f fps · cpu %.1f ms · %d draws · blocos %d/%d · %d objetos · %dk tri",
+		float64(w.n)/w.t.Seconds(), float64(w.cpu.Microseconds())/1000/float64(w.n),
+		s.draws, s.visible, s.chunks, s.props, s.tris/1000)
+	w.n, w.t, w.cpu = 0, 0, 0
+	return out
+}
+
+func (b *benchStats) report(total time.Duration, g *game.Game) string {
+	f := b.frames
+	if len(f) > 30 {
+		f = f[30:] // descarta o aquecimento (blocos iniciais, compilação)
+	}
+	if len(f) == 0 {
+		return "bench: nenhum quadro"
+	}
+	s := slices.Clone(f)
+	slices.Sort(s)
+	var sum time.Duration
+	for _, d := range s {
+		sum += d
+	}
+	avg := sum / time.Duration(len(s))
+	p := func(q float64) time.Duration { return s[min(len(s)-1, int(q*float64(len(s))))] }
+	slow := 0
+	for _, d := range s {
+		if d > 20*time.Millisecond { // perdeu mais de um vsync a 60 Hz
+			slow++
+		}
+	}
+	ms := func(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
+	return fmt.Sprintf("bench %s · trecho %s → %s · %.0f km rodados\n"+
+		"quadros %d · média %.1f fps · quadro médio %.2f ms · p50 %.2f · p99 %.2f · pior %.2f ms · >20 ms: %d (%.2f%%)\n"+
+		"cpu por quadro (montagem+envio) %.2f ms, pior %.2f ms · pior game.Update %.2f ms · blocos montados %d · último quadro: %d draws, %d/%d blocos, %d objetos, %dk triângulos",
+		total.Round(time.Second), g.Route.Origem, g.Route.Destino, g.Km(),
+		len(s), 1/avg.Seconds(), ms(avg), ms(p(0.5)), ms(p(0.99)), ms(s[len(s)-1]), slow, 100*float64(slow)/float64(len(s)),
+		ms(b.cpu)/float64(len(b.frames)), ms(b.cpuMax), ms(b.upd), b.built, b.last.draws, b.last.visible, b.last.chunks, b.last.props, b.last.tris/1000)
 }

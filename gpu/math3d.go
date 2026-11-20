@@ -54,6 +54,19 @@ func perspective(fovY, aspect, near, far float64) mat4 {
 	return m
 }
 
+// perspectiveRevInf: profundidade invertida e sem plano de fundo: perto = 1,
+// infinito = 0. Com textura de profundidade em float a precisão fica quase
+// uniforme em toda a distância.
+func perspectiveRevInf(fovY, aspect, near float64) mat4 {
+	f := 1 / math.Tan(fovY/2)
+	var m mat4
+	m[0] = float32(f / aspect)
+	m[5] = float32(f)
+	m[11] = -1
+	m[14] = float32(near)
+	return m
+}
+
 // lookDir: rotação da câmera parada na origem, olhando para fwd.
 func lookDir(fwd vec3) (m mat4, s, u, f vec3) {
 	f = fwd.norm()
