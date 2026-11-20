@@ -23,7 +23,7 @@ import (
 
 // serveSSH serve o jogo por ssh: `ssh -p 2323 host`. Cada sessão tem seu
 // próprio jogo; quem entra com chave pública tem progresso salvo em saves/.
-func serveSSH(addr string, routes []*Route) error {
+func ServeSSH(addr string, routes []*Route) error {
 	os.Setenv("COLORTERM", "truecolor") // terminais modernos aguentam; tcell lê daqui
 	srv, err := wish.NewServer(
 		wish.WithAddress(addr),
@@ -77,7 +77,7 @@ func gameMiddleware(routes []*Route) wish.Middleware {
 			app.Close()
 			km := 0.0
 			if app.game != nil {
-				km = app.game.km()
+				km = app.game.Km()
 			}
 			log.Printf("sessão %s: teclado kitty=%v, km %.2f", sess.User(), kb.Active(), km)
 			closeScreen(scr, tty)

@@ -39,7 +39,7 @@ func TestSnap(t *testing.T) {
 		dir = "snap"
 	}
 	os.MkdirAll(dir, 0o755)
-	routes, err := loadRoutes(os.DirFS("."))
+	routes, err := LoadRoutes(os.DirFS("."))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,23 +61,23 @@ func TestSnap(t *testing.T) {
 	}
 	for _, c := range scenes {
 		g := NewGame(routes[c.trecho], 500, 30, nil)
-		g.pos = c.km*g.upk - playerZ
-		g.tod = c.hora / 24
-		g.speed = maxSpeed * 0.6
-		seg := g.road.find(g.pos + playerZ)
-		g.fogD, g.rainD, g.hillsK = 2+12*seg.fog, seg.rain, seg.ter.hills
-		if g.route.twoWay() {
-			g.playerX = 0.5
+		g.Pos = c.km*g.Upk - PlayerZ
+		g.Tod = c.hora / 24
+		g.Speed = MaxSpeed * 0.6
+		seg := g.Road.Find(g.Pos + PlayerZ)
+		g.FogD, g.RainD, g.HillsK = 2+12*seg.Fog, seg.Rain, seg.Ter.Hills
+		if g.Route.TwoWay() {
+			g.PlayerX = 0.5
 		}
-		g.cars = g.cars[:2]
-		g.spawn(&g.cars[0], g.pos+playerZ+5000)
-		g.spawn(&g.cars[1], g.pos+playerZ+11000)
+		g.Cars = g.Cars[:2]
+		g.Spawn(&g.Cars[0], g.Pos+PlayerZ+5000)
+		g.Spawn(&g.Cars[1], g.Pos+PlayerZ+11000)
 		if c.oncoming {
-			g.cars[1] = Car{z: g.pos + playerZ + 7000, x: -0.5, dir: -1, kind: kindTruck,
-				speed: maxSpeed * 0.3, cap: maxSpeed * 0.3, color: kindTruck.colors[2]}
+			g.Cars[1] = Car{Z: g.Pos + PlayerZ + 7000, X: -0.5, Dir: -1, Kind: KindTruck,
+				Speed: MaxSpeed * 0.3, Cap: MaxSpeed * 0.3, Color: KindTruck.Colors[2]}
 		}
-		if g.route.twoWay() {
-			g.cars[0].x, g.cars[0].dir = 0.5, 1
+		if g.Route.TwoWay() {
+			g.Cars[0].X, g.Cars[0].Dir = 0.5, 1
 		}
 		var v view
 		v.Draw(s, g)

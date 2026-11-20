@@ -16,19 +16,19 @@ var skyKeys = []skyKey{
 	{1.00, RGB{4, 6, 20}, RGB{18, 22, 48}},
 }
 
-func skyColors(t float64) (RGB, RGB) {
+func SkyColors(t float64) (RGB, RGB) {
 	for i := 0; i < len(skyKeys)-1; i++ {
 		a, b := skyKeys[i], skyKeys[i+1]
 		if t >= a.t && t <= b.t {
 			k := (t - a.t) / (b.t - a.t)
-			return mix(a.zen, b.zen, k), mix(a.hor, b.hor, k)
+			return Mix(a.zen, b.zen, k), Mix(a.hor, b.hor, k)
 		}
 	}
 	return skyKeys[0].zen, skyKeys[0].hor
 }
 
 // daylight: 0.15 (noite) .. 1 (dia), com amanhecer ~6h e anoitecer ~19h.
-func daylight(t float64) float64 {
+func Daylight(t float64) float64 {
 	h := t * 24
 	switch {
 	case h < 5.5 || h > 19.5:

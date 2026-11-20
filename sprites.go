@@ -295,13 +295,13 @@ var propSprites = map[PropKind]*Sprite{
 }
 
 // vehSprites: traseira e frente de cada tipo de veículo do tráfego.
-var vehSprites = map[*vehKind][2]*Sprite{
-	kindCar: {sprCar, sprCarFront}, kindTruck: {sprTruck, sprTruckFront},
-	kindBus: {sprBus, sprBusFront}, kindBoat: {sprBarco, sprBarco},
+var vehSprites = map[*VehKind][2]*Sprite{
+	KindCar: {sprCar, sprCarFront}, KindTruck: {sprTruck, sprTruckFront},
+	KindBus: {sprBus, sprBusFront}, KindBoat: {sprBarco, sprBarco},
 }
 
-func playerSprite(v vehicle) *Sprite {
-	if v.boat {
+func playerSprite(v Vehicle) *Sprite {
+	if v.Boat {
 		return sprBalsa
 	}
 	return spr147

@@ -6,7 +6,7 @@ import "math"
 // Meia-pista (roadWidth) vira 20 unidades ≈ 3,5 m.
 const (
 	ws = 0.01
-	hw = roadWidth * ws // meia-pista em unidades 3D
+	hw = RoadWidth * ws // meia-pista em unidades 3D
 )
 
 // track transforma os segmentos do jogo numa curva 3D. A "curva" de cada
@@ -19,17 +19,17 @@ type track struct {
 }
 
 func buildTrack(r *Road) *track {
-	n := len(r.segs)
+	n := len(r.Segs)
 	t := &track{pos: make([]vec3, n+1), head: make([]float64, n+1)}
 	var x, z, th float64
-	for i, s := range r.segs {
-		t.pos[i] = vec3{x, s.y1 * ws, z}
+	for i, s := range r.Segs {
+		t.pos[i] = vec3{x, s.Y1 * ws, z}
 		t.head[i] = th
-		th -= s.curve / segLen // curva positiva dobra à direita
-		x += math.Sin(th) * segLen * ws
-		z += math.Cos(th) * segLen * ws
+		th -= s.Curve / SegLen // curva positiva dobra à direita
+		x += math.Sin(th) * SegLen * ws
+		z += math.Cos(th) * SegLen * ws
 	}
-	t.pos[n] = vec3{x, r.segs[n-1].y2 * ws, z}
+	t.pos[n] = vec3{x, r.Segs[n-1].Y2 * ws, z}
 	t.head[n] = th
 	return t
 }
@@ -41,11 +41,11 @@ func dirs(th float64) (fwd, right vec3) {
 
 // frame: centro da pista, frente e direita na distância z (unidades do jogo).
 func (t *track) frame(z float64) (c, fwd, right vec3) {
-	f := z / segLen
+	f := z / SegLen
 	i := max(0, min(int(f), len(t.pos)-2))
-	k := clamp(f-float64(i), 0, 1)
+	k := Clamp(f-float64(i), 0, 1)
 	c = lerp3(t.pos[i], t.pos[i+1], k)
-	fwd, right = dirs(lerp(t.head[i], t.head[i+1], k))
+	fwd, right = dirs(Lerp(t.head[i], t.head[i+1], k))
 	return
 }
 
@@ -121,8 +121,8 @@ var (
 )
 
 // relevo fora da pista: sobe com a distância, mais alto na serra.
-func rise(ter *terrainCfg, x float64, i, side int) float64 {
-	bank := ter.bank
+func rise(ter *TerrainCfg, x float64, i, side int) float64 {
+	bank := ter.Bank
 	if bank == 0 {
 		bank = 1.2
 	}
@@ -131,23 +131,23 @@ func rise(ter *terrainCfg, x float64, i, side int) float64 {
 		return 0
 	}
 	t := (ax - bank) / (40 - bank)
-	h := ter.hills * 110 * (0.55 + 0.45*math.Sin(float64(i)*0.021+float64(side)*2.1))
+	h := ter.Hills * 110 * (0.55 + 0.45*math.Sin(float64(i)*0.021+float64(side)*2.1))
 	return h * math.Pow(t, 1.4)
 }
 
 func (sc *scene3d) segment(i int, g *Game) {
-	r, t, m := g.road, sc.trk, &sc.m
-	seg := &r.segs[i]
-	ter := seg.ter
-	alt := (i / rumbleLen) % 2
-	bank := ter.bank
+	r, t, m := g.Road, sc.trk, &sc.m
+	seg := &r.Segs[i]
+	ter := seg.Ter
+	alt := (i / RumbleLen) % 2
+	bank := ter.Bank
 	if bank == 0 {
 		bank = 1.2
 	}
 	xs := [...]float64{-160, -40, -9, -bank, -1, 1, bank, 9, 40, 160}
-	far := col(mix(ter.grass[alt], RGB{90, 110, 120}, 0.35))
-	cols := [...]color3{far.mul(0.85), far, col(ter.grass[alt]), col(ter.shoulder[alt]), col(ter.road[alt]),
-		col(ter.shoulder[alt]), col(ter.grass[alt]), far, far.mul(0.85)}
+	far := col(Mix(ter.Grass[alt], RGB{90, 110, 120}, 0.35))
+	cols := [...]color3{far.mul(0.85), far, col(ter.Grass[alt]), col(ter.Shoulder[alt]), col(ter.Road[alt]),
+		col(ter.Shoulder[alt]), col(ter.Grass[alt]), far, far.mul(0.85)}
 	_, r1 := dirs(t.head[i])
 	_, r2 := dirs(t.head[i+1])
 	pt := func(n int, rt vec3, x float64) vec3 {
@@ -160,7 +160,7 @@ func (sc *scene3d) segment(i int, g *Game) {
 	for k := range cols {
 		m.quad(pt(i, r1, xs[k]), pt(i, r1, xs[k+1]), pt(i+1, r2, xs[k+1]), pt(i+1, r2, xs[k]), cols[k])
 	}
-	if !ter.paint {
+	if !ter.Paint {
 		return
 	}
 	line := func(x0, x1 float64, k color3) {
@@ -171,7 +171,7 @@ func (sc *scene3d) segment(i int, g *Game) {
 	line(-1, -0.965, paint3D)
 	line(0.965, 1, paint3D)
 	switch {
-	case g.route.twoWay():
+	case g.Route.TwoWay():
 		line(-0.05, -0.02, yellow3D)
 		line(0.02, 0.05, yellow3D)
 	case alt == 0:
@@ -180,18 +180,18 @@ func (sc *scene3d) segment(i int, g *Game) {
 }
 
 func shade(i int, x float64) float32 { // variação de cor por objeto
-	return 0.85 + float32(hash(i, int(x*97))%30)/100
+	return 0.85 + float32(hash3D(i, int(x*97))%30)/100
 }
 
 // prop: modelos low-poly do cenário, montados com caixas.
 func (sc *scene3d) prop(i int, p Prop) {
 	m, t := &sc.m, sc.trk
 	fwd, r := dirs(t.head[i])
-	at := t.pos[i].add(r.mul(p.x * hw))
-	w := p.w * hw
-	v := shade(i, p.x)
+	at := t.pos[i].add(r.mul(p.X * hw))
+	w := p.W * hw
+	v := shade(i, p.X)
 	trunk := col(RGB{95, 65, 38})
-	switch p.kind {
+	switch p.Kind {
 	case PropTree:
 		m.box(at, r, up3, fwd, w*0.06, w*0.7, w*0.06, trunk)
 		m.box(at.add(up3.mul(w*0.5)), r, up3, fwd, w*0.5, w*0.75, w*0.5, col(RGB{40, 112, 46}).mul(v))
@@ -238,32 +238,32 @@ func (sc *scene3d) prop(i int, p Prop) {
 
 type dims3D struct{ len, h float64 }
 
-var vehDims = map[*vehKind]dims3D{
-	kindCar: {20, 6}, kindTruck: {46, 16}, kindBus: {52, 15}, kindBoat: {26, 5},
+var vehDims = map[*VehKind]dims3D{
+	KindCar: {20, 6}, KindTruck: {46, 16}, KindBus: {52, 15}, KindBoat: {26, 5},
 }
 
 // vehicle: carro do tráfego. dir=-1 vem de frente (faróis pra câmera).
 func (sc *scene3d) vehicle(c Car, night bool) {
 	m := &sc.m
-	center, fwd, r := sc.trk.frame(c.z)
-	pos := center.add(r.mul(c.x * hw))
-	d := vehDims[c.kind]
-	hx, hz := c.kind.w*hw/2, d.len/2
-	body := col(c.color)
+	center, fwd, r := sc.trk.frame(c.Z)
+	pos := center.add(r.mul(c.X * hw))
+	d := vehDims[c.Kind]
+	hx, hz := c.Kind.W*hw/2, d.len/2
+	body := col(c.Color)
 	lift := 1.3
-	if c.kind == kindBoat {
+	if c.Kind == KindBoat {
 		lift = -1
 	}
 	m.box(pos.add(up3.mul(lift)), r, up3, fwd, hx, d.h, hz, body)
-	switch c.kind {
-	case kindCar:
+	switch c.Kind {
+	case KindCar:
 		m.box(pos.add(up3.mul(lift+d.h)).add(fwd.mul(-1)), r, up3, fwd, hx*0.85, d.h*0.6, hz*0.5, col(RGB{70, 95, 115}))
-	case kindTruck:
-		m.box(pos.add(up3.mul(lift)).add(fwd.mul(c.dir*(hz+5))), r, up3, fwd, hx*0.95, d.h*0.6, 5, body.mul(0.7))
-	case kindBoat:
+	case KindTruck:
+		m.box(pos.add(up3.mul(lift)).add(fwd.mul(c.Dir*(hz+5))), r, up3, fwd, hx*0.95, d.h*0.6, 5, body.mul(0.7))
+	case KindBoat:
 		m.box(pos.add(up3.mul(lift+d.h)), r, up3, fwd, hx*0.6, d.h, hz*0.4, col(RGB{235, 235, 235}))
 	}
-	if c.kind != kindBoat {
+	if c.Kind != KindBoat {
 		for _, sx := range []float64{-1, 1} {
 			for _, sz := range []float64{-0.75, 0.75} {
 				m.box(pos.add(r.mul(sx*hx*0.9)).add(fwd.mul(sz*hz)), r, up3, fwd, 1, 2.6, 1.6, col(RGB{20, 20, 20}))
@@ -276,22 +276,22 @@ func (sc *scene3d) vehicle(c Car, night bool) {
 		tail, head = glow(RGB{255, 50, 30}), glow(RGB{255, 250, 220})
 	}
 	for _, sx := range []float64{-0.7, 0.7} {
-		m.box(pos.add(r.mul(sx*hx)).add(fwd.mul(-c.dir*(hz+0.05))).add(up3.mul(lift+2)), r, up3, fwd, 1.1, 1, 0.1, tail)
-		m.box(pos.add(r.mul(sx*hx)).add(fwd.mul(c.dir*(hz+0.05))).add(up3.mul(lift+2)), r, up3, fwd, 1.1, 1, 0.1, head)
+		m.box(pos.add(r.mul(sx*hx)).add(fwd.mul(-c.Dir*(hz+0.05))).add(up3.mul(lift+2)), r, up3, fwd, 1.1, 1, 0.1, tail)
+		m.box(pos.add(r.mul(sx*hx)).add(fwd.mul(c.Dir*(hz+0.05))).add(up3.mul(lift+2)), r, up3, fwd, 1.1, 1, 0.1, head)
 	}
 }
 
 // player: o 147 (ou a balsa com o 147 em cima).
 func (sc *scene3d) player(g *Game, night bool) {
 	m := &sc.m
-	center, fwd, r := sc.trk.frame(g.pos + playerZ)
-	pos := center.add(r.mul(g.playerX * hw))
-	if g.bmp > 0 || (math.Abs(g.playerX) > 1 && g.speed > 0) {
-		pos = pos.add(up3.mul(float64(g.rng.Intn(3)) * 0.15))
+	center, fwd, r := sc.trk.frame(g.Pos + PlayerZ)
+	pos := center.add(r.mul(g.PlayerX * hw))
+	if g.Bmp > 0 || (math.Abs(g.PlayerX) > 1 && g.Speed > 0) {
+		pos = pos.add(up3.mul(float64(g.Rng.Intn(3)) * 0.15))
 	}
 	yellow := col(RGB{230, 180, 40})
 	lift := 1.2
-	if g.route.boat() {
+	if g.Route.Boat() {
 		m.box(pos.add(up3.mul(-1.5)), r, up3, fwd, 10, 4, 24, col(RGB{40, 40, 45}))
 		m.box(pos.add(up3.mul(2.5)), r, up3, fwd, 10.2, 0.3, 24.2, col(RGB{150, 150, 150}))
 		lift = 4
@@ -307,7 +307,7 @@ func (sc *scene3d) player(g *Game, night bool) {
 	}
 	tail := col(RGB{170, 25, 25})
 	switch {
-	case g.braking:
+	case g.Braking:
 		tail = glow(RGB{255, 60, 40})
 	case night:
 		tail = glow(RGB{200, 40, 30})
@@ -324,37 +324,43 @@ type scene3d struct {
 
 // build monta a cena do quadro. Devolve câmera, direção e posição/direção do farol.
 func (sc *scene3d) build(g *Game) (cam, look, headPos, headDir vec3) {
-	camZ := g.pos + playerZ - 3600
+	camZ := g.Pos + PlayerZ - 3600
 	cc, _, cr := sc.trk.frame(camZ)
-	cam = cc.add(cr.mul(g.playerX * hw * 0.9)).add(up3.mul(13))
-	if g.bmp > 0 {
-		cam = cam.add(vec3{g.rng.Float64() - 0.5, g.rng.Float64() - 0.5, 0}.mul(0.6))
+	cam = cc.add(cr.mul(g.PlayerX * hw * 0.9)).add(up3.mul(13))
+	if g.Bmp > 0 {
+		cam = cam.add(vec3{g.Rng.Float64() - 0.5, g.Rng.Float64() - 0.5, 0}.mul(0.6))
 	}
-	tc, _, tr := sc.trk.frame(g.pos + playerZ + 2500)
-	look = tc.add(tr.mul(g.playerX * hw * 0.6)).add(up3.mul(4)).sub(cam)
+	tc, _, tr := sc.trk.frame(g.Pos + PlayerZ + 2500)
+	look = tc.add(tr.mul(g.PlayerX * hw * 0.6)).add(up3.mul(4)).sub(cam)
 
-	pc, pf, pr := sc.trk.frame(g.pos + playerZ + 900)
-	headPos = pc.add(pr.mul(g.playerX * hw)).add(up3.mul(3)).sub(cam)
+	pc, pf, pr := sc.trk.frame(g.Pos + PlayerZ + 900)
+	headPos = pc.add(pr.mul(g.PlayerX * hw)).add(up3.mul(3)).sub(cam)
 	headDir = pf.add(up3.mul(-0.07)).norm()
 
 	sc.m.reset(cam)
-	r := g.road
-	base := int(g.pos / segLen)
-	from, to := max(base-behind3D, 0), min(base+ahead3D, len(r.segs)-1)
+	r := g.Road
+	base := int(g.Pos / SegLen)
+	from, to := max(base-behind3D, 0), min(base+ahead3D, len(r.Segs)-1)
 	for i := from; i < to; i++ {
 		sc.segment(i, g)
 	}
 	for i := from; i < to; i++ {
-		for _, p := range r.segs[i].props {
+		for _, p := range r.Segs[i].Props {
 			sc.prop(i, p)
 		}
 	}
-	night := daylight(g.tod) < 0.6
-	for _, c := range g.cars {
-		if s := int(c.z / segLen); s >= from && s < to {
+	night := Daylight(g.Tod) < 0.6
+	for _, c := range g.Cars {
+		if s := int(c.Z / SegLen); s >= from && s < to {
 			sc.vehicle(c, night)
 		}
 	}
 	sc.player(g, night)
 	return
+}
+
+func hash3D(x, y int) uint32 {
+	h := uint32(x)*73856093 ^ uint32(y)*19349663
+	h ^= h >> 13
+	return h * 0x5bd1e995
 }

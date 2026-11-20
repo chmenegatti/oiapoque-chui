@@ -17,7 +17,7 @@ func TestDemoGIF(t *testing.T) {
 	if os.Getenv("DEMO") == "" {
 		t.Skip("defina DEMO=1 para gerar docs/demo.gif")
 	}
-	routes, err := loadRoutes(os.DirFS("."))
+	routes, err := LoadRoutes(os.DirFS("."))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,24 +40,24 @@ func TestDemoGIF(t *testing.T) {
 	var W, H int
 	for _, sc := range scenes {
 		g := NewGame(routes[sc.trecho], 1e6, 30, nil)
-		g.pos = sc.km*g.upk - playerZ
-		g.tod = sc.hora / 24
-		g.speed = g.vmax * 0.7
-		g.cruise = true
-		seg := g.road.find(g.pos + playerZ)
-		g.fogD, g.rainD, g.hillsK = 2+12*seg.fog, seg.rain, seg.ter.hills
-		g.msgT = 0
-		for i := range g.cars { // tráfego já na vista
-			g.spawn(&g.cars[i], g.pos+playerZ+segLen*float64(15+g.rng.Intn(drawDist)))
+		g.Pos = sc.km*g.Upk - PlayerZ
+		g.Tod = sc.hora / 24
+		g.Speed = g.Vmax * 0.7
+		g.Cruise = true
+		seg := g.Road.Find(g.Pos + PlayerZ)
+		g.FogD, g.RainD, g.HillsK = 2+12*seg.Fog, seg.Rain, seg.Ter.Hills
+		g.MsgT = 0
+		for i := range g.Cars { // tráfego já na vista
+			g.Spawn(&g.Cars[i], g.Pos+PlayerZ+SegLen*float64(15+g.Rng.Intn(DrawDist)))
 		}
 		stopped := map[float64]bool{}
 		var v view
 		for f := 0; f < int(sc.seconds*60); f++ {
-			if g.route.boat() {
-				autopilot(g, stopped, 1.0/60) // desvia dos troncos
+			if g.Route.Boat() {
+				Autopilot(g, stopped, 1.0/60) // desvia dos troncos
 			} else {
-				g.cruise = true
-				g.playerX += clamp(sc.lane-g.playerX, -0.03, 0.03) // mantém a mão
+				g.Cruise = true
+				g.PlayerX += Clamp(sc.lane-g.PlayerX, -0.03, 0.03) // mantém a mão
 			}
 			g.Update(1.0/60, Controls{})
 			if f%every == 0 {

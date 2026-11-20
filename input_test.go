@@ -54,14 +54,14 @@ func TestFiltroTerminalComum(t *testing.T) {
 
 // jogoDeTeste: BR-156 no km 20, sem tráfego, a meia velocidade.
 func jogoDeTeste(t *testing.T) *Game {
-	routes, err := loadRoutes(os.DirFS("."))
+	routes, err := LoadRoutes(os.DirFS("."))
 	if err != nil {
 		t.Fatal(err)
 	}
 	g := NewGame(routes[0], 1000, 30, nil)
-	g.pos = 20 * g.upk
-	g.cars = nil
-	g.speed = maxSpeed * 0.5
+	g.Pos = 20 * g.Upk
+	g.Cars = nil
+	g.Speed = MaxSpeed * 0.5
 	return g
 }
 
@@ -71,18 +71,18 @@ func TestSoltouDesacelera(t *testing.T) {
 	step := func() { g.Update(1.0/60, in.controls(time.Now())) }
 	in.kb.down[actUp] = true
 	step()
-	if !g.throttle {
+	if !g.Throttle {
 		t.Fatal("↑ apertado deveria acelerar")
 	}
 	in.kb.down[actLeft] = true // virando com ↑ apertado
 	step()
-	if !g.throttle {
+	if !g.Throttle {
 		t.Fatal("virando com ↑ apertado continua acelerando")
 	}
 	in.kb.down[actUp] = false // soltou ↑ no meio da curva
-	v := g.speed
+	v := g.Speed
 	step()
-	if g.throttle || g.speed >= v {
+	if g.Throttle || g.Speed >= v {
 		t.Fatal("soltou ↑: deveria desacelerar mesmo virando")
 	}
 }

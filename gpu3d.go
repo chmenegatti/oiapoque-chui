@@ -248,16 +248,16 @@ func (r *renderer3d) frame(sv *wgpu.TextureView, w, h int, g *Game) error {
 	tanY := math.Tan(fovY / 2)
 
 	// luz e céu
-	day := daylight(g.tod) * (1 - 0.35*g.rainD)
-	zen, hor := skyColors(g.tod)
+	day := Daylight(g.Tod) * (1 - 0.35*g.RainD)
+	zen, hor := SkyColors(g.Tod)
 	gray := RGB{110, 115, 125}
-	zen = mix(zen, scale(gray, day), g.rainD*0.7)
-	hor = mix(hor, scale(gray, day+0.2), g.rainD*0.7)
-	a := (g.tod - 0.25) * 2 * math.Pi
+	zen = Mix(zen, Scale(gray, day), g.RainD*0.7)
+	hor = Mix(hor, Scale(gray, day+0.2), g.RainD*0.7)
+	a := (g.Tod - 0.25) * 2 * math.Pi
 	sun := vec3{math.Cos(a) * 0.6, math.Sin(a), 0.45}.norm()
-	sc := mix(RGB{255, 140, 60}, RGB{255, 245, 225}, clamp(sun.y*4, 0, 1))
+	sc := Mix(RGB{255, 140, 60}, RGB{255, 245, 225}, Clamp(sun.y*4, 0, 1))
 	sr, sg, sb := rgbf(sc)
-	k := day * clamp(sun.y*5+0.3, 0, 1)
+	k := day * Clamp(sun.y*5+0.3, 0, 1)
 	hr, hg, hb := rgbf(hor)
 	zr, zg, zb := rgbf(zen)
 	headI := (1 - day) * 1.6
@@ -269,11 +269,11 @@ func (r *renderer3d) frame(sv *wgpu.TextureView, w, h int, g *Game) error {
 	o := 64
 	o = putVec4(b, o, sun.x, sun.y, sun.z, 0.16+0.3*day)
 	o = putVec4(b, o, sr*k, sg*k, sb*k, day)
-	o = putVec4(b, o, hr, hg, hb, math.Sqrt(g.fogD)/750)
+	o = putVec4(b, o, hr, hg, hb, math.Sqrt(g.FogD)/750)
 	o = putVec4(b, o, zr, zg, zb, 0)
 	o = putVec4(b, o, hr, hg, hb, 0)
 	o = putVec4(b, o, headPos.x, headPos.y, headPos.z, headI)
-	o = putVec4(b, o, headDir.x, headDir.y, headDir.z, 260*g.veh.headlight/40)
+	o = putVec4(b, o, headDir.x, headDir.y, headDir.z, 260*g.Veh.Headlight/40)
 	o = putVec4(b, o, s.x, s.y, s.z, tanY*aspect)
 	o = putVec4(b, o, u.x, u.y, u.z, tanY)
 	putVec4(b, o, f.x, f.y, f.z, 0)
@@ -333,13 +333,13 @@ func (r *renderer3d) release() {
 
 // run3D abre a janela 3D num trecho (1..10). Mesma física, rotas e regras
 // do jogo de terminal; só o desenho muda.
-func run3D(routes []*Route, trecho int) error {
+func Run3D(routes []*Route, trecho int) error {
 	if trecho < 1 || trecho > len(routes) {
 		return fmt.Errorf("trecho %d não existe (1..%d)", trecho, len(routes))
 	}
 	rt := routes[trecho-1]
 	g := NewGame(rt, 500, 30, nil)
-	trk := buildTrack(g.road)
+	trk := buildTrack(g.Road)
 
 	app := gogpu.NewApp(gogpu.DefaultConfig().
 		WithTitle("Oiapoque ao Chuí 3D").
@@ -378,11 +378,11 @@ func run3D(routes []*Route, trecho int) error {
 		case k.JustPressed(input.KeyEscape):
 			app.Quit()
 		case k.JustPressed(input.KeyC):
-			g.toggleCruise()
+			g.ToggleCruise()
 		case k.JustPressed(input.KeyP):
-			g.paused = !g.paused
+			g.Paused = !g.Paused
 		case k.JustPressed(input.KeyG):
-			g.tow()
+			g.Tow()
 		}
 		g.Update(dt, in)
 
@@ -406,22 +406,22 @@ func run3D(routes []*Route, trecho int) error {
 
 // title3D: enquanto não há HUD na janela, o painel vai no título.
 func title3D(g *Game) string {
-	rt := g.route
-	h, m := int(g.tod*24), int(g.tod*24*60)%60
+	rt := g.Route
+	h, m := int(g.Tod*24), int(g.Tod*24*60)%60
 	s := fmt.Sprintf("%s → %s · %3.0f km/h · km %.0f/%.0f · %02d:%02d · R$ %.0f",
-		rt.Origem, rt.Destino, g.kmh(), g.km(), rt.KmTotal, h, m, g.money)
-	if !rt.boat() {
-		s += fmt.Sprintf(" · %.0f L · %.0f°", g.fuel, g.temp)
+		rt.Origem, rt.Destino, g.Kmh(), g.Km(), rt.KmTotal, h, m, g.Money)
+	if !rt.Boat() {
+		s += fmt.Sprintf(" · %.0f L · %.0f°", g.Fuel, g.Temp)
 	}
 	switch {
-	case g.paused:
+	case g.Paused:
 		s = "PAUSADO · " + s
-	case g.state == arrived:
+	case g.State == Arrived:
 		s = "CHEGOU! · " + s
-	case g.state == outOfFuel:
+	case g.State == OutOfFuel:
 		s = "PANE SECA (g = guincho) · " + s
-	case g.msgT > 0:
-		s = g.msg + " · " + s
+	case g.MsgT > 0:
+		s = g.Msg + " · " + s
 	}
 	return s
 }

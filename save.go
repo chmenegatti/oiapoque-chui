@@ -18,11 +18,11 @@ type Save struct {
 	Parada    *Checkpoint     `json:"parada,omitempty"`
 }
 
-func newSave() Save {
+func NewSave() Save {
 	return Save{Dinheiro: 500, Gasolina: 20, Melhorias: map[string]bool{}}
 }
 
-func savePath() string {
+func SavePath() string {
 	d, err := os.UserConfigDir()
 	if err != nil {
 		return ""
@@ -30,8 +30,8 @@ func savePath() string {
 	return filepath.Join(d, "oiapoque-chui", "save.json")
 }
 
-func loadSave(path string) Save {
-	s := newSave()
+func LoadSave(path string) Save {
+	s := NewSave()
 	if path == "" {
 		return s
 	}
@@ -44,7 +44,7 @@ func loadSave(path string) Save {
 	return s
 }
 
-func (s Save) write(p string) error {
+func (s Save) Write(p string) error {
 	if p == "" {
 		return nil
 	}
@@ -58,11 +58,11 @@ func (s Save) write(p string) error {
 // ---------- oficina ----------
 
 type upgrade struct {
-	id, nome, desc string
-	preco          float64
+	ID, Nome, Desc string
+	Preco          float64
 }
 
-var upgrades = []upgrade{
+var Upgrades = []upgrade{
 	{"motor", "Motor 1.3 envenenado", "+15 km/h de final e arranque, esquenta mais", 900},
 	{"radiador", "Radiador novo", "motor esquenta 20% menos", 400},
 	{"tanque", "Tanque extra", "+12 L de autonomia", 350},
