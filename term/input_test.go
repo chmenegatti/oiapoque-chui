@@ -1,8 +1,11 @@
-package main
+package term
 
 import (
+	"os"
 	"testing"
 	"time"
+
+	"github.com/chmenegatti/oiapoque-chui/game"
 )
 
 func TestFiltroKitty(t *testing.T) {
@@ -51,72 +54,60 @@ func TestFiltroTerminalComum(t *testing.T) {
 	}
 }
 
-func driving(t *testing.T) *Game {
-	g := trafficGame(t)
-	g.cars = nil
-	g.cruise = false
-	g.speed = maxSpeed * 0.5
+// jogoDeTeste: BR-156 no km 20, sem tráfego, a meia velocidade.
+func jogoDeTeste(t *testing.T) *game.Game {
+	routes, err := game.LoadRoutes(os.DirFS(".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	g := game.NewGame(routes[0], 1000, 30, nil)
+	g.Pos = 20 * g.Upk
+	g.Cars = nil
+	g.Speed = game.MaxSpeed * 0.5
 	return g
 }
 
 func TestSoltouDesacelera(t *testing.T) {
-	g := driving(t)
-	g.kb = &Keyboard{active: true}
-	g.kb.down[actUp] = true
-	g.Update(1.0 / 60)
-	if !g.throttle {
+	g := jogoDeTeste(t)
+	in := &termInput{kb: &Keyboard{active: true}}
+	step := func() { g.Update(1.0/60, in.controls(time.Now())) }
+	in.kb.down[actUp] = true
+	step()
+	if !g.Throttle {
 		t.Fatal("↑ apertado deveria acelerar")
 	}
-	g.kb.down[actLeft] = true // virando com ↑ apertado
-	g.Update(1.0 / 60)
-	if !g.throttle {
+	in.kb.down[actLeft] = true // virando com ↑ apertado
+	step()
+	if !g.Throttle {
 		t.Fatal("virando com ↑ apertado continua acelerando")
 	}
-	g.kb.down[actUp] = false // soltou ↑ no meio da curva
-	v := g.speed
-	g.Update(1.0 / 60)
-	if g.throttle || g.speed >= v {
+	in.kb.down[actUp] = false // soltou ↑ no meio da curva
+	v := g.Speed
+	step()
+	if g.Throttle || g.Speed >= v {
 		t.Fatal("soltou ↑: deveria desacelerar mesmo virando")
 	}
 }
 
 func TestHeuristicaCurva(t *testing.T) {
-	g := driving(t)
 	now := time.Now()
-	g.keys[actUp] = keyState{last: now, repeats: 5}
-	g.keys[actLeft] = keyState{last: now, repeats: 0}
-	g.Update(1.0 / 60)
-	if !g.throttle {
-		t.Fatal("↑ + ← deveria acelerar")
+	in := &termInput{}
+	in.keys[actUp] = keyState{last: now, repeats: 5}
+	in.keys[actLeft] = keyState{last: now, repeats: 0}
+	if c := in.controls(now); !c.Up || !c.Left {
+		t.Fatalf("↑ + ← deveria acelerar e virar: %+v", c)
 	}
-	g.keys[actUp] = keyState{last: now.Add(-time.Second), repeats: 5} // terminal parou de repetir ↑
-	g.keys[actLeft] = keyState{last: now, repeats: 3}
-	g.Update(1.0 / 60)
-	if !g.throttle {
+	in.keys[actUp] = keyState{last: now.Add(-time.Second), repeats: 5} // terminal parou de repetir ↑
+	in.keys[actLeft] = keyState{last: now, repeats: 3}
+	if c := in.controls(now); !c.Up {
 		t.Fatal("virando depois de ↑: assume ↑ ainda apertado")
 	}
-	g.keys[actLeft] = keyState{last: now.Add(-time.Second), repeats: 3} // soltou tudo
-	g.Update(1.0 / 60)
-	if g.throttle {
+	in.keys[actLeft] = keyState{last: now.Add(-time.Second), repeats: 3} // soltou tudo
+	if c := in.controls(now); c.Up {
 		t.Fatal("soltou tudo: deveria desacelerar")
 	}
-	g.keys[actLeft] = keyState{last: now, repeats: 0} // virar sem ↑ não acelera
-	g.Update(1.0 / 60)
-	if g.throttle {
+	in.keys[actLeft] = keyState{last: now, repeats: 0} // virar sem ↑ não acelera
+	if c := in.controls(now); c.Up {
 		t.Fatal("virar sem ter acelerado não deveria acelerar")
-	}
-}
-
-func TestPilotoDeVelocidade(t *testing.T) {
-	g := driving(t)
-	g.toggleCruise()
-	g.Update(1.0 / 60)
-	if !g.throttle {
-		t.Fatal("piloto ligado acelera sem tecla")
-	}
-	g.keys[actDown] = keyState{last: time.Now()}
-	g.Update(1.0 / 60)
-	if g.cruise {
-		t.Fatal("frear desliga o piloto")
 	}
 }

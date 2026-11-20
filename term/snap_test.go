@@ -1,4 +1,4 @@
-package main
+package term
 
 import (
 	"image"
@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/chmenegatti/oiapoque-chui/game"
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -27,19 +28,19 @@ func savePNG(f *Frame, path string, scale int) error {
 	return png.Encode(out, img)
 }
 
-// TestSnap gera imagens de cenas do jogo. SNAP=<pasta> (ou SNAP=1 → snap/).
+// TestSnap gera imagens de cenas do jogo. SNAP=<pasta, relativa a term/> (ou SNAP=1 → ../snap/).
 //
-//	SNAP=docs/img go test -run TestSnap .
+//	SNAP=../docs/img go test -run TestSnap ./term
 func TestSnap(t *testing.T) {
 	dir := os.Getenv("SNAP")
 	if dir == "" {
 		t.Skip("defina SNAP=<pasta> para gerar imagens")
 	}
 	if dir == "1" {
-		dir = "snap"
+		dir = "../snap"
 	}
 	os.MkdirAll(dir, 0o755)
-	routes, err := loadRoutes()
+	routes, err := game.LoadRoutes(os.DirFS(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,27 +61,28 @@ func TestSnap(t *testing.T) {
 		{"pampa-taim", 9, 150, 18.6, true},
 	}
 	for _, c := range scenes {
-		g := NewGame(routes[c.trecho], 500, 30, nil)
-		g.pos = c.km*g.upk - playerZ
-		g.tod = c.hora / 24
-		g.speed = maxSpeed * 0.6
-		seg := g.road.find(g.pos + playerZ)
-		g.fogD, g.rainD, g.hillsK = 2+12*seg.fog, seg.rain, seg.ter.hills
-		if g.route.twoWay() {
-			g.playerX = 0.5
+		g := game.NewGame(routes[c.trecho], 500, 30, nil)
+		g.Pos = c.km*g.Upk - game.PlayerZ
+		g.Tod = c.hora / 24
+		g.Speed = game.MaxSpeed * 0.6
+		seg := g.Road.Find(g.Pos + game.PlayerZ)
+		g.FogD, g.RainD, g.HillsK = 2+12*seg.Fog, seg.Rain, seg.Ter.Hills
+		if g.Route.TwoWay() {
+			g.PlayerX = 0.5
 		}
-		g.cars = g.cars[:2]
-		g.spawn(&g.cars[0], g.pos+playerZ+5000)
-		g.spawn(&g.cars[1], g.pos+playerZ+11000)
+		g.Cars = g.Cars[:2]
+		g.Spawn(&g.Cars[0], g.Pos+game.PlayerZ+5000)
+		g.Spawn(&g.Cars[1], g.Pos+game.PlayerZ+11000)
 		if c.oncoming {
-			g.cars[1] = Car{z: g.pos + playerZ + 7000, x: -0.5, dir: -1, kind: kindTruck,
-				speed: maxSpeed * 0.3, cap: maxSpeed * 0.3, color: kindTruck.colors[2]}
+			g.Cars[1] = game.Car{Z: g.Pos + game.PlayerZ + 7000, X: -0.5, Dir: -1, Kind: game.KindTruck,
+				Speed: game.MaxSpeed * 0.3, Cap: game.MaxSpeed * 0.3, Color: game.KindTruck.Colors[2]}
 		}
-		if g.route.twoWay() {
-			g.cars[0].x, g.cars[0].dir = 0.5, 1
+		if g.Route.TwoWay() {
+			g.Cars[0].X, g.Cars[0].Dir = 0.5, 1
 		}
-		g.Draw(s)
-		if err := savePNG(g.frame, filepath.Join(dir, c.name+".png"), 3); err != nil {
+		var v view
+		v.Draw(s, g)
+		if err := savePNG(v.frame, filepath.Join(dir, c.name+".png"), 3); err != nil {
 			t.Fatal(err)
 		}
 	}

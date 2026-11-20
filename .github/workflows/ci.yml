@@ -16,7 +16,8 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - run: go vet ./...
+      # composites desligado: paletas de cor usam game.RGB{r, g, b} sem nomes de campo
+      - run: go vet -composites=false ./...
       - run: go test -count=1 ./...
       - name: build linux/macOS
         run: |

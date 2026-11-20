@@ -1,59 +1,36 @@
-package main
+package term
 
 import (
 	"fmt"
 	"math"
 
+	"github.com/chmenegatti/oiapoque-chui/game"
 	"github.com/gdamore/tcell/v2"
 )
 
-// RGB é uma cor truecolor.
-type RGB struct{ R, G, B uint8 }
-
-func (c RGB) tc() tcell.Color {
+func tc(c game.RGB) tcell.Color {
 	return tcell.NewRGBColor(int32(c.R), int32(c.G), int32(c.B))
-}
-
-func clamp(v, lo, hi float64) float64 { return math.Max(lo, math.Min(hi, v)) }
-
-func lerp(a, b, t float64) float64 { return a + (b-a)*t }
-
-func mix(a, b RGB, t float64) RGB {
-	t = clamp(t, 0, 1)
-	return RGB{
-		uint8(lerp(float64(a.R), float64(b.R), t)),
-		uint8(lerp(float64(a.G), float64(b.G), t)),
-		uint8(lerp(float64(a.B), float64(b.B), t)),
-	}
-}
-
-func scale(c RGB, k float64) RGB {
-	return RGB{
-		uint8(clamp(float64(c.R)*k, 0, 255)),
-		uint8(clamp(float64(c.G)*k, 0, 255)),
-		uint8(clamp(float64(c.B)*k, 0, 255)),
-	}
 }
 
 // Frame é um buffer de pixels. Cada célula do terminal mostra 2 pixels
 // verticais usando '▀' (cor de frente = pixel de cima, fundo = pixel de baixo).
 type Frame struct {
 	W, H int
-	Pix  []RGB
+	Pix  []game.RGB
 }
 
-func NewFrame(w, h int) *Frame { return &Frame{W: w, H: h, Pix: make([]RGB, w*h)} }
+func NewFrame(w, h int) *Frame { return &Frame{W: w, H: h, Pix: make([]game.RGB, w*h)} }
 
-func (f *Frame) Set(x, y int, c RGB) {
+func (f *Frame) Set(x, y int, c game.RGB) {
 	if x < 0 || y < 0 || x >= f.W || y >= f.H {
 		return
 	}
 	f.Pix[y*f.W+x] = c
 }
 
-func (f *Frame) Get(x, y int) RGB { return f.Pix[y*f.W+x] }
+func (f *Frame) Get(x, y int) game.RGB { return f.Pix[y*f.W+x] }
 
-func (f *Frame) HLine(x1, x2, y int, c RGB) {
+func (f *Frame) HLine(x1, x2, y int, c game.RGB) {
 	if y < 0 || y >= f.H {
 		return
 	}
@@ -65,7 +42,7 @@ func (f *Frame) HLine(x1, x2, y int, c RGB) {
 }
 
 // Span pinta [a,b) em coordenadas float, garantindo ao menos 1 pixel.
-func (f *Frame) Span(a, b float64, y int, c RGB) {
+func (f *Frame) Span(a, b float64, y int, c game.RGB) {
 	x1, x2 := int(math.Floor(a)), int(math.Ceil(b))-1
 	if x2 < x1 {
 		x2 = x1
@@ -77,7 +54,7 @@ func (f *Frame) Flush(s tcell.Screen) {
 	for row := 0; row < f.H/2; row++ {
 		top, bot := f.Pix[2*row*f.W:], f.Pix[(2*row+1)*f.W:]
 		for x := 0; x < f.W; x++ {
-			st := tcell.StyleDefault.Foreground(top[x].tc()).Background(bot[x].tc())
+			st := tcell.StyleDefault.Foreground(tc(top[x])).Background(tc(bot[x]))
 			s.SetContent(x, row, '▀', nil, st)
 		}
 	}
@@ -87,10 +64,10 @@ func (f *Frame) Flush(s tcell.Screen) {
 type Sprite struct {
 	rows []string
 	w, h int
-	pal  map[byte]RGB
+	pal  map[byte]game.RGB
 }
 
-func newSprite(pal map[byte]RGB, rows ...string) *Sprite {
+func newSprite(pal map[byte]game.RGB, rows ...string) *Sprite {
 	for i, r := range rows {
 		if len(r) != len(rows[0]) {
 			panic(fmt.Sprintf("sprite: linha %d com largura %d, esperado %d", i, len(r), len(rows[0])))
@@ -101,7 +78,7 @@ func newSprite(pal map[byte]RGB, rows ...string) *Sprite {
 
 // Sprite desenha sp escalado para largura w, centrado em cx, com a base em bottom.
 // Linhas >= clip ficam ocultas (atrás de morro). body substitui a cor 'b'.
-func (f *Frame) Sprite(sp *Sprite, cx, bottom, w, clip float64, body *RGB, shade func(byte, RGB) RGB) {
+func (f *Frame) Sprite(sp *Sprite, cx, bottom, w, clip float64, body *game.RGB, shade func(byte, game.RGB) game.RGB) {
 	if w < 1.5 {
 		return
 	}

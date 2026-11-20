@@ -1,6 +1,8 @@
-package main
+package term
 
-var carPal = map[byte]RGB{
+import "github.com/chmenegatti/oiapoque-chui/game"
+
+var carPal = map[byte]game.RGB{
 	'k': {25, 25, 25},    // contorno
 	'w': {90, 120, 140},  // vidro
 	'b': {230, 180, 40},  // carroceria
@@ -46,7 +48,7 @@ var sprCar = newSprite(carPal,
 
 // ---------- cenário ----------
 
-var scenePal = map[byte]RGB{
+var scenePal = map[byte]game.RGB{
 	'g': {28, 100, 38},   // folha escura
 	'G': {60, 145, 60},   // folha clara
 	'Y': {110, 170, 50},  // folha de bananeira
@@ -285,3 +287,24 @@ var sprBusFront = newSprite(carPal,
 	"cccccccccccccccccccc",
 	".ttt............ttt.",
 )
+
+// ---------- tipos do jogo → sprites do terminal ----------
+
+var propSprites = map[game.PropKind]*Sprite{
+	game.PropTree: sprArvore, game.PropAcai: sprAcai, game.PropBanana: sprBananeira, game.PropPequi: sprPequi,
+	game.PropCow: sprVaca, game.PropLog: sprTronco, game.PropKm: sprKm, game.PropCitySign: sprPlaca,
+	game.PropSpeedSign: sprLimite, game.PropRadar: sprRadar, game.PropGasStation: sprPosto,
+}
+
+// vehSprites: traseira e frente de cada tipo de veículo do tráfego.
+var vehSprites = map[*game.VehKind][2]*Sprite{
+	game.KindCar: {sprCar, sprCarFront}, game.KindTruck: {sprTruck, sprTruckFront},
+	game.KindBus: {sprBus, sprBusFront}, game.KindBoat: {sprBarco, sprBarco},
+}
+
+func playerSprite(v game.Vehicle) *Sprite {
+	if v.Boat {
+		return sprBalsa
+	}
+	return spr147
+}

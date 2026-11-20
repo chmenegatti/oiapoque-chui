@@ -1,4 +1,4 @@
-package main
+package term
 
 import (
 	"image"
@@ -8,16 +8,17 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/chmenegatti/oiapoque-chui/game"
 	"github.com/gdamore/tcell/v2"
 )
 
 // TestDemoGIF grava docs/demo.gif com o piloto automático em três cenas.
-// Roda só com DEMO=1 go test -run TestDemoGIF .
+// Roda só com DEMO=1 go test -run TestDemoGIF ./term
 func TestDemoGIF(t *testing.T) {
 	if os.Getenv("DEMO") == "" {
 		t.Skip("defina DEMO=1 para gerar docs/demo.gif")
 	}
-	routes, err := loadRoutes()
+	routes, err := game.LoadRoutes(os.DirFS(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,33 +37,34 @@ func TestDemoGIF(t *testing.T) {
 		{1, 60, 17.4, 3.5, 0},  // balsa no Amazonas
 	}
 	const scale, every = 4, 6 // 60 FPS / 6 = 10 FPS
-	var frames [][]RGB
+	var frames [][]game.RGB
 	var W, H int
 	for _, sc := range scenes {
-		g := NewGame(routes[sc.trecho], 1e6, 30, nil)
-		g.pos = sc.km*g.upk - playerZ
-		g.tod = sc.hora / 24
-		g.speed = g.vmax * 0.7
-		g.cruise = true
-		seg := g.road.find(g.pos + playerZ)
-		g.fogD, g.rainD, g.hillsK = 2+12*seg.fog, seg.rain, seg.ter.hills
-		g.msgT = 0
-		for i := range g.cars { // tráfego já na vista
-			g.spawn(&g.cars[i], g.pos+playerZ+segLen*float64(15+g.rng.Intn(drawDist)))
+		g := game.NewGame(routes[sc.trecho], 1e6, 30, nil)
+		g.Pos = sc.km*g.Upk - game.PlayerZ
+		g.Tod = sc.hora / 24
+		g.Speed = g.Vmax * 0.7
+		g.Cruise = true
+		seg := g.Road.Find(g.Pos + game.PlayerZ)
+		g.FogD, g.RainD, g.HillsK = 2+12*seg.Fog, seg.Rain, seg.Ter.Hills
+		g.MsgT = 0
+		for i := range g.Cars { // tráfego já na vista
+			g.Spawn(&g.Cars[i], g.Pos+game.PlayerZ+game.SegLen*float64(15+g.Rng.Intn(game.DrawDist)))
 		}
 		stopped := map[float64]bool{}
+		var v view
 		for f := 0; f < int(sc.seconds*60); f++ {
-			if g.route.boat() {
-				autopilot(g, stopped, 1.0/60) // desvia dos troncos
+			if g.Route.Boat() {
+				game.Autopilot(g, stopped, 1.0/60) // desvia dos troncos
 			} else {
-				g.cruise = true
-				g.playerX += clamp(sc.lane-g.playerX, -0.03, 0.03) // mantém a mão
+				g.Cruise = true
+				g.PlayerX += game.Clamp(sc.lane-g.PlayerX, -0.03, 0.03) // mantém a mão
 			}
-			g.Update(1.0 / 60)
+			g.Update(1.0/60, game.Controls{})
 			if f%every == 0 {
-				g.Draw(s)
-				frames = append(frames, slices.Clone(g.frame.Pix))
-				W, H = g.frame.W, g.frame.H
+				v.Draw(s, g)
+				frames = append(frames, slices.Clone(v.frame.Pix))
+				W, H = v.frame.W, v.frame.H
 			}
 		}
 	}
@@ -79,8 +81,8 @@ func TestDemoGIF(t *testing.T) {
 		anim.Image = append(anim.Image, img)
 		anim.Delay = append(anim.Delay, 100/(60/every))
 	}
-	os.MkdirAll("docs", 0o755)
-	out, err := os.Create("docs/demo.gif")
+	os.MkdirAll("../docs", 0o755)
+	out, err := os.Create("../docs/demo.gif")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,8 +96,8 @@ func TestDemoGIF(t *testing.T) {
 
 // quantize: paleta com as 256 cores (5 bits/canal) mais frequentes; mapeia
 // cada cor para a mais próxima, com cache.
-func quantize(frames [][]RGB) (color.Palette, func(RGB) uint8) {
-	key := func(c RGB) uint16 { return uint16(c.R>>3)<<10 | uint16(c.G>>3)<<5 | uint16(c.B>>3) }
+func quantize(frames [][]game.RGB) (color.Palette, func(game.RGB) uint8) {
+	key := func(c game.RGB) uint16 { return uint16(c.R>>3)<<10 | uint16(c.G>>3)<<5 | uint16(c.B>>3) }
 	counts := map[uint16]int{}
 	for _, f := range frames {
 		for _, c := range f {
@@ -112,8 +114,8 @@ func quantize(frames [][]RGB) (color.Palette, func(RGB) uint8) {
 	for i, k := range keys {
 		pal[i] = color.RGBA{uint8(k>>10&31)<<3 | 4, uint8(k>>5&31)<<3 | 4, uint8(k&31)<<3 | 4, 255}
 	}
-	cache := map[RGB]uint8{}
-	return pal, func(c RGB) uint8 {
+	cache := map[game.RGB]uint8{}
+	return pal, func(c game.RGB) uint8 {
 		if i, ok := cache[c]; ok {
 			return i
 		}

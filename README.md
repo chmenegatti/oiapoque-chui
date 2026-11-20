@@ -152,15 +152,15 @@ ssh -p 2323 servidor         # para jogar
 
 ## Por dentro
 
-**Pixels em texto.** Cada célula do terminal desenha dois pixels com o caractere `▀`: a cor de frente é o pixel de cima, a de fundo é o de baixo. O jogo desenha num framebuffer RGB e converte no fim de cada quadro (`render.go`).
+**Pixels em texto.** Cada célula do terminal desenha dois pixels com o caractere `▀`: a cor de frente é o pixel de cima, a de fundo é o de baixo. O jogo desenha num framebuffer RGB e converte no fim de cada quadro (`term/render.go`).
 
-**Estrada pseudo-3D.** A técnica clássica dos jogos de corrida de fliperama: a estrada é uma lista de segmentos com curva e altura, projetados de perto para longe, linha por linha, cortando o que fica atrás de morro (`road.go`, `draw.go`). Cenário e tráfego são sprites escalados pela perspectiva, desenhados de longe para perto.
+**Estrada pseudo-3D.** A técnica clássica dos jogos de corrida de fliperama: a estrada é uma lista de segmentos com curva e altura, projetados de perto para longe, linha por linha, cortando o que fica atrás de morro (`game/road.go`, `term/draw.go`). Cenário e tráfego são sprites escalados pela perspectiva, desenhados de longe para perto.
 
-**Rotas em dados.** Cada trecho é um JSON em `rotas/` com terreno por faixa de quilômetro, cidades, postos e clima. A estrada é gerada com seed fixa, então é sempre a mesma: o terreno define o caráter das curvas, morros, cores e vegetação (`route.go`). Postos e radares são colocados automaticamente a partir das cidades.
+**Rotas em dados.** Cada trecho é um JSON em `rotas/` com terreno por faixa de quilômetro, cidades, postos e clima. A estrada é gerada com seed fixa, então é sempre a mesma: o terreno define o caráter das curvas, morros, cores e vegetação (`game/route.go`). Postos e radares são colocados automaticamente a partir das cidades.
 
-**Tráfego.** Carros, caminhões e ônibus nos dois sentidos, com fila atrás dos lentos e colisão "varrida" entre quadros, para que ninguém atravesse o jogador quando a velocidade relativa passa de um segmento por quadro (`traffic.go`).
+**Tráfego.** Carros, caminhões e ônibus nos dois sentidos, com fila atrás dos lentos e colisão "varrida" entre quadros, para que ninguém atravesse o jogador quando a velocidade relativa passa de um segmento por quadro (`game/traffic.go`).
 
-**Teclado.** O [tcell](https://github.com/gdamore/tcell) liga só a parte básica do protocolo do kitty e descarta os eventos de soltar tecla. `input.go` fica entre o terminal e o tcell: pede ao terminal os tipos de evento, guarda o estado das setas e repassa ao tcell só o que ele entende. Ao sair, devolve o terminal como estava.
+**Teclado.** O [tcell](https://github.com/gdamore/tcell) liga só a parte básica do protocolo do kitty e descarta os eventos de soltar tecla. `term/input.go` fica entre o terminal e o tcell: pede ao terminal os tipos de evento, guarda o estado das setas e repassa ao tcell só o que ele entende. Ao sair, devolve o terminal como estava.
 
 ### Criar uma rota
 
@@ -193,32 +193,30 @@ Tipos de terreno: `urbano`, `ondulado`, `serra`, `bananal`, `terra`, `floresta`,
 ## Desenvolvimento
 
 ```bash
-go test ./...                              # todos os testes
-SNAP=1 go test -run TestSnap .             # imagens das cenas em snap/
-DEMO=1 go test -run TestDemoGIF .          # regera docs/demo.gif (Go puro, sem dependências)
-vhs demo.tape                              # grava o terminal real, com painel (precisa do vhs)
+go test ./...                                    # todos os testes
+go run . -3d -trecho 8                           # protótipo da versão 3D (WebGPU)
+SNAP=1 go test -run TestSnap ./term              # imagens das cenas em snap/
+DEMO=1 go test -run TestDemoGIF ./term           # regera docs/demo.gif (Go puro, sem dependências)
+vhs demo.tape                                    # grava o terminal real, com painel (precisa do vhs)
 ```
+
+O `go vet` do CI roda com `-composites=false`, porque as paletas de cor usam `game.RGB{r, g, b}`.
 
 Os testes mais importantes:
 
-- `TestCampanha`: um piloto automático faz os 10 trechos acelerando fundo, para no posto quando o tanque baixa e alivia quando o motor ferve. Garante que toda rota é vencível e mostra o balanço de tempo, gasolina, temperatura e multas.
-- `TestFluxo` e `TestParada`: menu, oficina, balsa, guincho, pausa, save por cidade e continuar do mesmo km.
-- `TestBatidaDeFrente`, `TestMaoCerta`, `TestFilaAtrasDoCaminhao`: tráfego em mão dupla.
-- `TestFiltroKitty`, `TestSoltouDesacelera`, `TestHeuristicaCurva`: teclado.
+- `game/TestCampanha`: um piloto automático faz os 10 trechos acelerando fundo, para no posto quando o tanque baixa e alivia quando o motor ferve. Garante que toda rota é vencível e mostra o balanço de tempo, gasolina, temperatura e multas.
+- `term/TestFluxo` e `term/TestParada`: menu, oficina, balsa, guincho, pausa, save por cidade e continuar do mesmo km.
+- `game/TestBatidaDeFrente`, `TestMaoCerta`, `TestFilaAtrasDoCaminhao`: tráfego em mão dupla.
+- `term/TestFiltroKitty`, `TestSoltouDesacelera`, `TestHeuristicaCurva`: teclado.
 
-| Arquivo | O que faz |
+O código é dividido em camadas: a simulação não sabe se está sendo desenhada no terminal ou na GPU.
+
+| Pacote | O que faz |
 |---|---|
-| `main.go` | entrada, flag `-ssh`, loop a 60 FPS |
-| `screens.go` | menu, oficina, tela final, save |
-| `game.go` | física, veículo e melhorias, combustível, temperatura, posto, radar, guincho, checkpoint |
-| `traffic.go` | veículos, mão dupla, fila, buzina, colisões |
-| `route.go` | carrega rotas, gera a estrada, terrenos, postos, radares e cenário |
-| `road.go` | segmentos com curva e morro |
-| `draw.go` | céu, chuva, neblina, serra no horizonte, farol, sprites, painel |
-| `sprites.go` | pixel art em texto |
-| `render.go` | framebuffer e conversão para `▀` |
-| `input.go` | protocolo de teclado do kitty |
-| `ssh.go` | servidor wish e adaptador de sessão ssh para o tcell |
+| `main.go` | flags (`-ssh`, `-3d`, `-trecho`) e as rotas embutidas |
+| `game/` | o jogo em si: rotas, estrada, física, tráfego, combustível, temperatura, posto, radar, campanha, save, oficina. Recebe `Controls` a cada quadro; só usa a biblioteca padrão |
+| `term/` | jogo no terminal (tcell): framebuffer `▀`, pixel art, painel, menus, protocolo de teclado do kitty, servidor ssh (wish) |
+| `gpu/` | versão 3D (gogpu/WebGPU, sem cgo): curva 3D da estrada, cena, shaders, janela |
 | `rotas/` | os 10 trechos |
 | `docs/` | página do projeto (GitHub Pages), GIF e imagens |
 
