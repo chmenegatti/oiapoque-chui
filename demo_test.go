@@ -58,7 +58,7 @@ func TestDemoGIF(t *testing.T) {
 				g.cruise = true
 				g.playerX += clamp(sc.lane-g.playerX, -0.03, 0.03) // mantém a mão
 			}
-			g.Update(1.0 / 60)
+			g.Update(1.0/60, Controls{})
 			if f%every == 0 {
 				g.Draw(s)
 				frames = append(frames, slices.Clone(g.frame.Pix))

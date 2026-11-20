@@ -6,12 +6,14 @@ import "math"
 // viram float32 já relativas à câmera (evita tremedeira a milhares de km).
 type vec3 struct{ x, y, z float64 }
 
-func (a vec3) add(b vec3) vec3      { return vec3{a.x + b.x, a.y + b.y, a.z + b.z} }
-func (a vec3) sub(b vec3) vec3      { return vec3{a.x - b.x, a.y - b.y, a.z - b.z} }
-func (a vec3) mul(k float64) vec3   { return vec3{a.x * k, a.y * k, a.z * k} }
-func (a vec3) dot(b vec3) float64   { return a.x*b.x + a.y*b.y + a.z*b.z }
-func (a vec3) cross(b vec3) vec3    { return vec3{a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x} }
-func (a vec3) length() float64      { return math.Sqrt(a.dot(a)) }
+func (a vec3) add(b vec3) vec3    { return vec3{a.x + b.x, a.y + b.y, a.z + b.z} }
+func (a vec3) sub(b vec3) vec3    { return vec3{a.x - b.x, a.y - b.y, a.z - b.z} }
+func (a vec3) mul(k float64) vec3 { return vec3{a.x * k, a.y * k, a.z * k} }
+func (a vec3) dot(b vec3) float64 { return a.x*b.x + a.y*b.y + a.z*b.z }
+func (a vec3) cross(b vec3) vec3 {
+	return vec3{a.y*b.z - a.z*b.y, a.z*b.x - a.x*b.z, a.x*b.y - a.y*b.x}
+}
+func (a vec3) length() float64        { return math.Sqrt(a.dot(a)) }
 func lerp3(a, b vec3, t float64) vec3 { return a.add(b.sub(a).mul(t)) }
 
 func (a vec3) norm() vec3 {

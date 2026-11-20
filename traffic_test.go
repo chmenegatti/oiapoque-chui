@@ -25,7 +25,7 @@ func TestBatidaDeFrente(t *testing.T) {
 	g.playerX = -0.5 // na contramão
 	for range 120 {
 		g.playerX = -0.5
-		g.Update(1.0 / 60)
+		g.Update(1.0/60, Controls{})
 	}
 	if g.money != 1000-funilaria {
 		t.Fatalf("esperava batida de frente (R$ %.0f), dinheiro = %.0f", funilaria, g.money)
@@ -37,7 +37,7 @@ func TestMaoCerta(t *testing.T) {
 	g.playerX = 0.5 // na própria mão
 	for range 60 {
 		g.playerX = 0.5
-		g.Update(1.0 / 60)
+		g.Update(1.0/60, Controls{})
 	}
 	if g.money != 1000 {
 		t.Fatalf("na própria mão não deveria bater, dinheiro = %.0f", g.money)

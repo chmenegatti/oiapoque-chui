@@ -7,21 +7,20 @@ import (
 
 // vehKind: tipo de veículo do tráfego.
 type vehKind struct {
-	name        string
-	rear, front *Sprite
-	w           float64 // largura em meias-pistas
-	minS, maxS  float64 // velocidade desejada (fração de maxSpeed)
-	colors      []RGB
+	name       string
+	w          float64 // largura em meias-pistas
+	minS, maxS float64 // velocidade desejada (fração de maxSpeed)
+	colors     []RGB
 }
 
 var (
-	kindCar = &vehKind{"carro", sprCar, sprCarFront, carW, 0.30, 0.62,
+	kindCar = &vehKind{"carro", carW, 0.30, 0.62,
 		[]RGB{{200, 30, 30}, {30, 60, 160}, {230, 230, 230}, {40, 40, 40}, {20, 120, 60}, {180, 180, 190}, {150, 90, 40}}}
-	kindTruck = &vehKind{"caminhão", sprTruck, sprTruckFront, 0.62, 0.18, 0.34,
+	kindTruck = &vehKind{"caminhão", 0.62, 0.18, 0.34,
 		[]RGB{{235, 235, 235}, {190, 190, 195}, {40, 80, 160}, {170, 40, 30}, {230, 180, 40}}}
-	kindBus = &vehKind{"ônibus", sprBus, sprBusFront, 0.62, 0.32, 0.45,
+	kindBus = &vehKind{"ônibus", 0.62, 0.32, 0.45,
 		[]RGB{{235, 235, 235}, {30, 90, 170}, {200, 60, 30}}}
-	kindBoat = &vehKind{"barco", sprBarco, sprBarco, carW, 0.25, 0.6,
+	kindBoat = &vehKind{"barco", carW, 0.25, 0.6,
 		[]RGB{{40, 90, 170}, {200, 60, 30}, {30, 130, 90}}}
 )
 

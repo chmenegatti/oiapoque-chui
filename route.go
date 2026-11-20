@@ -136,7 +136,7 @@ func (rt *Route) prepare() {
 // ---------- terrenos ----------
 
 type flora struct {
-	spr         *Sprite
+	kind        PropKind
 	prob, w, wv float64 // chance por segmento, largura, variação
 	hit         float64
 	water       bool    // no meio do rio (obstáculo) em vez da margem
@@ -168,13 +168,13 @@ var (
 	sMud     = [2]RGB{{110, 85, 55}, {100, 78, 50}}
 )
 
-func tree(p float64) flora   { return flora{spr: sprArvore, prob: p, w: 0.9, wv: 0.5, hit: 0.2} }
-func acai(p float64) flora   { return flora{spr: sprAcai, prob: p, w: 0.6, wv: 0.3, hit: 0.1} }
-func banana(p float64) flora { return flora{spr: sprBananeira, prob: p, w: 0.7, wv: 0.2, hit: 0.15} }
-func pequi(p float64) flora  { return flora{spr: sprPequi, prob: p, w: 0.8, wv: 0.4, hit: 0.15} }
-func cow(p float64) flora    { return flora{spr: sprVaca, prob: p, w: 0.5, wv: 0.1} }
+func tree(p float64) flora   { return flora{kind: PropTree, prob: p, w: 0.9, wv: 0.5, hit: 0.2} }
+func acai(p float64) flora   { return flora{kind: PropAcai, prob: p, w: 0.6, wv: 0.3, hit: 0.1} }
+func banana(p float64) flora { return flora{kind: PropBanana, prob: p, w: 0.7, wv: 0.2, hit: 0.15} }
+func pequi(p float64) flora  { return flora{kind: PropPequi, prob: p, w: 0.8, wv: 0.4, hit: 0.15} }
+func cow(p float64) flora    { return flora{kind: PropCow, prob: p, w: 0.5, wv: 0.1} }
 func trunk(p float64) flora {
-	return flora{spr: sprTronco, prob: p, w: 0.5, wv: 0.3, hit: 0.5, water: true}
+	return flora{kind: PropLog, prob: p, w: 0.5, wv: 0.3, hit: 0.5, water: true}
 }
 func easyCurves() []float64  { return []float64{0, curveEasy, curveMedium} }
 func straightish() []float64 { return []float64{0, 0, curveEasy} }
@@ -243,15 +243,15 @@ func buildRoad(rt *Route) *Road {
 	add := func(km float64, p Prop) { s := at(km); s.props = append(s.props, p) }
 	if !rt.boat() {
 		for k := 1; k < int(rt.KmTotal); k++ {
-			add(float64(k), Prop{spr: sprKm, x: 1.25, w: 0.12})
+			add(float64(k), Prop{kind: PropKm, x: 1.25, w: 0.12})
 		}
 	}
 	for _, c := range rt.Cidades {
-		add(math.Max(c.Km-0.5, 0), Prop{spr: sprPlaca, x: 1.5, w: 0.9, hit: 0.15})
+		add(math.Max(c.Km-0.5, 0), Prop{kind: PropCitySign, x: 1.5, w: 0.9, hit: 0.15})
 	}
 	for _, km := range rt.radares {
-		add(km-1, Prop{spr: sprLimite, x: 1.35, w: 0.3, hit: 0.1})
-		add(km, Prop{spr: sprRadar, x: 1.3, w: 0.25, hit: 0.1})
+		add(km-1, Prop{kind: PropSpeedSign, x: 1.35, w: 0.3, hit: 0.1})
+		add(km, Prop{kind: PropRadar, x: 1.3, w: 0.25, hit: 0.1})
 	}
 	for _, p := range rt.Postos {
 		s := at(p)
@@ -260,7 +260,7 @@ func buildRoad(rt *Route) *Road {
 				r.segs[j].props = slices.DeleteFunc(r.segs[j].props, func(p Prop) bool { return p.veg })
 			}
 		}
-		s.props = append(s.props, Prop{spr: sprPosto, x: 2.3, w: 2.2, hit: 1.6})
+		s.props = append(s.props, Prop{kind: PropGasStation, x: 2.3, w: 2.2, hit: 1.6})
 	}
 	return r
 }
@@ -283,7 +283,7 @@ func scatter(s *Segment, cfg *terrainCfg, rng *rand.Rand) {
 				x = -x
 			}
 		}
-		s.props = append(s.props, Prop{spr: f.spr, x: x, w: f.w + rng.Float64()*f.wv, hit: f.hit, veg: !f.water})
+		s.props = append(s.props, Prop{kind: f.kind, x: x, w: f.w + rng.Float64()*f.wv, hit: f.hit, veg: !f.water})
 	}
 }
 

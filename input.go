@@ -4,6 +4,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/gdamore/tcell/v2/terminfo"
@@ -169,4 +170,99 @@ func openScreen(tty tcell.Tty, ti *terminfo.Terminfo) (tcell.Screen, *Keyboard, 
 func closeScreen(s tcell.Screen, tty tcell.Tty) {
 	_, _ = tty.Write([]byte(kittyPop))
 	s.Fini()
+}
+
+// ---------- teclas do terminal → controles do jogo ----------
+
+type action int
+
+const (
+	actUp action = iota
+	actDown
+	actLeft
+	actRight
+	nActions
+)
+
+// Terminal não manda "soltou tecla": consideramos segurada enquanto chegam
+// repetições. A 1ª repetição demora (delay do SO), por isso a janela maior.
+type keyState struct {
+	last    time.Time
+	repeats int
+}
+
+func (k keyState) held(now time.Time) bool {
+	win := 120 * time.Millisecond
+	if k.repeats == 0 {
+		win = 600 * time.Millisecond
+	}
+	return !k.last.IsZero() && now.Sub(k.last) < win
+}
+
+// termInput traduz as teclas do terminal em Controls. Com o protocolo do
+// kitty usa o estado real das setas; sem ele, a repetição do terminal e a
+// heurística de curva (virando com ↑ apertado, ↑ continua valendo).
+type termInput struct {
+	keys      [nActions]keyState
+	steerKeep bool
+	kb        *Keyboard
+}
+
+func (t *termInput) press(ev *tcell.EventKey) {
+	a := action(-1)
+	switch ev.Key() {
+	case tcell.KeyUp:
+		a = actUp
+	case tcell.KeyDown:
+		a = actDown
+	case tcell.KeyLeft:
+		a = actLeft
+	case tcell.KeyRight:
+		a = actRight
+	case tcell.KeyRune:
+		switch ev.Rune() {
+		case 'w':
+			a = actUp
+		case 's':
+			a = actDown
+		case 'a':
+			a = actLeft
+		case 'd':
+			a = actRight
+		}
+	}
+	if a < 0 {
+		return
+	}
+	now := time.Now()
+	k := &t.keys[a]
+	if k.held(now) {
+		k.repeats++
+	} else {
+		k.repeats = 0
+	}
+	k.last = now
+	t.keys[a^1] = keyState{} // direções opostas se cancelam
+	if (a == actLeft || a == actRight) && (t.keys[actUp].held(now) || t.steerKeep) {
+		t.steerKeep = true
+	}
+}
+
+func (t *termInput) held(a action, now time.Time) bool {
+	if t.kb.Active() && t.kb.Down(a) {
+		return true
+	}
+	return t.keys[a].held(now)
+}
+
+func (t *termInput) controls(now time.Time) Controls {
+	in := Controls{Up: t.held(actUp, now), Down: t.held(actDown, now), Left: t.held(actLeft, now), Right: t.held(actRight, now)}
+	if !t.kb.Active() {
+		steering := in.Left || in.Right
+		if in.Up || !steering {
+			t.steerKeep = in.Up && steering
+		}
+		in.Up = in.Up || (t.steerKeep && steering)
+	}
+	return in
 }

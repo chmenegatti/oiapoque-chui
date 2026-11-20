@@ -285,3 +285,24 @@ var sprBusFront = newSprite(carPal,
 	"cccccccccccccccccccc",
 	".ttt............ttt.",
 )
+
+// ---------- tipos do jogo → sprites do terminal ----------
+
+var propSprites = map[PropKind]*Sprite{
+	PropTree: sprArvore, PropAcai: sprAcai, PropBanana: sprBananeira, PropPequi: sprPequi,
+	PropCow: sprVaca, PropLog: sprTronco, PropKm: sprKm, PropCitySign: sprPlaca,
+	PropSpeedSign: sprLimite, PropRadar: sprRadar, PropGasStation: sprPosto,
+}
+
+// vehSprites: traseira e frente de cada tipo de veículo do tráfego.
+var vehSprites = map[*vehKind][2]*Sprite{
+	kindCar: {sprCar, sprCarFront}, kindTruck: {sprTruck, sprTruckFront},
+	kindBus: {sprBus, sprBusFront}, kindBoat: {sprBarco, sprBarco},
+}
+
+func playerSprite(v vehicle) *Sprite {
+	if v.boat {
+		return sprBalsa
+	}
+	return spr147
+}

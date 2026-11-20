@@ -33,10 +33,27 @@ type Segment struct {
 	props  []Prop      // cenário na beira da estrada
 }
 
+// PropKind diz o que é um objeto de cenário; cada frontend decide como desenhá-lo.
+type PropKind uint8
+
+const (
+	PropTree PropKind = iota
+	PropAcai
+	PropBanana
+	PropPequi
+	PropCow
+	PropLog
+	PropKm
+	PropCitySign
+	PropSpeedSign
+	PropRadar
+	PropGasStation
+)
+
 // Prop é um objeto de cenário: x em meias-pistas (|x|>1 = fora do asfalto),
 // w = largura no mundo em meias-pistas, hit = largura de colisão (0 = atravessável).
 type Prop struct {
-	spr  *Sprite
+	kind PropKind
 	x, w float64
 	hit  float64
 	veg  bool // vegetação (pode ser removida perto de posto)

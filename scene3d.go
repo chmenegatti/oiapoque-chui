@@ -101,11 +101,11 @@ func (m *mesh) box(base, r, u, f vec3, hx, h, hz float64, k color3) {
 	}
 	a, b, c, d := p(-1, 0, -1), p(1, 0, -1), p(1, 0, 1), p(-1, 0, 1)
 	e, g, i, j := p(-1, 1, -1), p(1, 1, -1), p(1, 1, 1), p(-1, 1, 1)
-	m.quad(e, g, i, j, k)            // topo
-	m.quad(a, b, g, e, k.mul(0.95))  // trás
-	m.quad(d, c, i, j, k.mul(0.95))  // frente
-	m.quad(a, d, j, e, k.mul(0.9))   // esquerda
-	m.quad(b, c, i, g, k.mul(0.9))   // direita
+	m.quad(e, g, i, j, k)           // topo
+	m.quad(a, b, g, e, k.mul(0.95)) // trás
+	m.quad(d, c, i, j, k.mul(0.95)) // frente
+	m.quad(a, d, j, e, k.mul(0.9))  // esquerda
+	m.quad(b, c, i, g, k.mul(0.9))  // direita
 }
 
 // ---------- cena ----------
@@ -191,30 +191,30 @@ func (sc *scene3d) prop(i int, p Prop) {
 	w := p.w * hw
 	v := shade(i, p.x)
 	trunk := col(RGB{95, 65, 38})
-	switch p.spr {
-	case sprArvore:
+	switch p.kind {
+	case PropTree:
 		m.box(at, r, up3, fwd, w*0.06, w*0.7, w*0.06, trunk)
 		m.box(at.add(up3.mul(w*0.5)), r, up3, fwd, w*0.5, w*0.75, w*0.5, col(RGB{40, 112, 46}).mul(v))
 		m.box(at.add(up3.mul(w*1.15)), r, up3, fwd, w*0.32, w*0.35, w*0.32, col(RGB{52, 128, 56}).mul(v))
-	case sprAcai:
+	case PropAcai:
 		m.box(at, r, up3, fwd, w*0.04, w*2.3, w*0.04, trunk)
 		m.box(at.add(up3.mul(w*2.2)), r, up3, fwd, w*0.55, w*0.18, w*0.55, col(RGB{95, 165, 55}).mul(v))
-	case sprBananeira:
+	case PropBanana:
 		m.box(at, r, up3, fwd, w*0.07, w*0.8, w*0.07, col(RGB{110, 130, 60}))
 		m.box(at.add(up3.mul(w*0.7)), r, up3, fwd, w*0.6, w*0.4, w*0.6, col(RGB{110, 170, 50}).mul(v))
-	case sprPequi:
+	case PropPequi:
 		m.box(at, r, up3, fwd, w*0.05, w*0.55, w*0.05, trunk)
 		m.box(at.add(up3.mul(w*0.5)), r, up3, fwd, w*0.55, w*0.3, w*0.55, col(RGB{120, 135, 55}).mul(v))
-	case sprVaca:
+	case PropCow:
 		m.box(at, r, up3, fwd, w*0.06, w*0.45, w*0.06, col(RGB{40, 40, 40}))
 		m.box(at.add(up3.mul(w*0.4)), r, up3, fwd, w*0.7, w*0.45, w*0.28, col(RGB{235, 235, 230}))
 		m.box(at.add(up3.mul(w*0.6)).add(r.mul(w*0.8)), r, up3, fwd, w*0.18, w*0.3, w*0.15, col(RGB{40, 40, 40}))
-	case sprPlaca:
+	case PropCitySign:
 		for _, s := range []float64{-0.35, 0.35} {
 			m.box(at.add(r.mul(w*s)), r, up3, fwd, w*0.03, w*0.9, w*0.03, col(RGB{140, 140, 140}))
 		}
 		m.box(at.add(up3.mul(w*0.55)), r, up3, fwd, w*0.5, w*0.4, w*0.03, col(RGB{20, 110, 60}))
-	case sprPosto:
+	case PropGasStation:
 		m.box(at.add(up3.mul(w*0.55)), r, up3, fwd, w*0.5, w*0.08, w*0.4, col(RGB{200, 30, 30}))
 		for _, s := range []float64{-0.4, 0, 0.4} {
 			m.box(at.add(r.mul(w*s)), r, up3, fwd, w*0.03, w*0.55, w*0.03, col(RGB{220, 220, 220}))
@@ -222,16 +222,16 @@ func (sc *scene3d) prop(i int, p Prop) {
 		for _, s := range []float64{-0.2, 0.2} {
 			m.box(at.add(r.mul(w*s)), r, up3, fwd, w*0.05, w*0.18, w*0.04, col(RGB{240, 180, 30}))
 		}
-	case sprKm:
+	case PropKm:
 		m.box(at, r, up3, fwd, 0.4, 2.4, 0.15, col(RGB{240, 240, 240}))
-	case sprRadar:
+	case PropRadar:
 		m.box(at, r, up3, fwd, 0.25, 9, 0.25, col(RGB{140, 140, 140}))
 		m.box(at.add(up3.mul(9)), r, up3, fwd, 1.2, 1.6, 1.2, col(RGB{230, 230, 230}))
-	case sprLimite:
+	case PropSpeedSign:
 		m.box(at, r, up3, fwd, 0.2, 8, 0.2, col(RGB{140, 140, 140}))
 		m.box(at.add(up3.mul(6.5)), r, up3, fwd, 1.6, 3.2, 0.1, col(RGB{240, 240, 240}))
 		m.box(at.add(up3.mul(6.5)).add(fwd.mul(-0.12)), r, up3, fwd, 1.8, 3.4, 0.05, col(RGB{200, 30, 30}))
-	case sprTronco:
+	case PropLog:
 		m.box(at.add(up3.mul(-0.6)), r, up3, fwd, w*0.5, 1.2, 0.9, col(RGB{100, 70, 40}).mul(v))
 	}
 }
@@ -296,7 +296,7 @@ func (sc *scene3d) player(g *Game, night bool) {
 		m.box(pos.add(up3.mul(2.5)), r, up3, fwd, 10.2, 0.3, 24.2, col(RGB{150, 150, 150}))
 		lift = 4
 	}
-	m.box(pos.add(up3.mul(lift)), r, up3, fwd, 4.5, 3.4, 9, yellow)                                 // carroceria
+	m.box(pos.add(up3.mul(lift)), r, up3, fwd, 4.5, 3.4, 9, yellow)                                    // carroceria
 	m.box(pos.add(up3.mul(lift+3.4)).add(fwd.mul(-1.5)), r, up3, fwd, 4.1, 2.9, 5.5, yellow.mul(0.97)) // cabine
 	m.box(pos.add(up3.mul(lift+3.6)).add(fwd.mul(-7.05)), r, up3, fwd, 3.6, 2.3, 0.05, col(RGB{70, 95, 115}))
 	m.box(pos.add(up3.mul(lift+0.4)).add(fwd.mul(-9.1)), r, up3, fwd, 4.6, 0.7, 0.2, col(RGB{170, 170, 170}))

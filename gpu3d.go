@@ -339,8 +339,6 @@ func run3D(routes []*Route, trecho int) error {
 	}
 	rt := routes[trecho-1]
 	g := NewGame(rt, 500, 30, nil)
-	kb := &Keyboard{active: true}
-	g.kb = kb
 	trk := buildTrack(g.road)
 
 	app := gogpu.NewApp(gogpu.DefaultConfig().
@@ -370,12 +368,12 @@ func run3D(routes []*Route, trecho int) error {
 		last = now
 
 		k := app.Input().Keyboard()
-		kb.mu.Lock()
-		kb.down[actUp] = k.Pressed(input.KeyUp) || k.Pressed(input.KeyW)
-		kb.down[actDown] = k.Pressed(input.KeyDown) || k.Pressed(input.KeyS)
-		kb.down[actLeft] = k.Pressed(input.KeyLeft) || k.Pressed(input.KeyA)
-		kb.down[actRight] = k.Pressed(input.KeyRight) || k.Pressed(input.KeyD)
-		kb.mu.Unlock()
+		in := Controls{
+			Up:    k.Pressed(input.KeyUp) || k.Pressed(input.KeyW),
+			Down:  k.Pressed(input.KeyDown) || k.Pressed(input.KeyS),
+			Left:  k.Pressed(input.KeyLeft) || k.Pressed(input.KeyA),
+			Right: k.Pressed(input.KeyRight) || k.Pressed(input.KeyD),
+		}
 		switch {
 		case k.JustPressed(input.KeyEscape):
 			app.Quit()
@@ -386,7 +384,7 @@ func run3D(routes []*Route, trecho int) error {
 		case k.JustPressed(input.KeyG):
 			g.tow()
 		}
-		g.Update(dt)
+		g.Update(dt, in)
 
 		w, h := app.PhysicalSize()
 		if err := r.frame(sv, w, h, g); err != nil {

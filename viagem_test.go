@@ -62,7 +62,7 @@ func TestCampanha(t *testing.T) {
 		overheats, wasOH, minFuel := 0, false, fuel
 		for step := 0; step < 60*60*30 && g.state == playing; step++ {
 			autopilot(g, stopped, dt)
-			g.Update(dt)
+			g.Update(dt, Controls{})
 			if g.overheat && !wasOH {
 				overheats++
 			}

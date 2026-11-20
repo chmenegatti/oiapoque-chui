@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 )
@@ -89,6 +90,7 @@ const (
 type App struct {
 	path    string    // arquivo de save ("" = não salva)
 	kb      *Keyboard // estado real do teclado (nil em testes)
+	in      termInput // teclas do terminal → controles do jogo
 	routes  []*Route
 	save    Save
 	scr     screen
@@ -114,7 +116,7 @@ func (a *App) done() bool { return a.save.Trecho >= len(a.routes) }
 func (a *App) startTrecho() {
 	rt := a.routes[a.save.Trecho]
 	a.game = NewGame(rt, a.save.Dinheiro, a.save.Gasolina, a.save.Melhorias)
-	a.game.kb = a.kb
+	a.in = termInput{kb: a.kb}
 	if cp := a.save.Parada; cp != nil && cp.Trecho == a.save.Trecho {
 		a.game.restore(cp)
 	}
@@ -199,7 +201,7 @@ func (a *App) key(ev *tcell.EventKey) bool {
 			a.persist()
 			a.startTrecho()
 		case g.state == playing:
-			g.press(ev)
+			a.in.press(ev)
 		}
 	case scShop:
 		n := len(upgrades) + 2 // + encher tanque + seguir
@@ -257,7 +259,7 @@ func (a *App) shopSelect() {
 
 func (a *App) tick(dt float64) {
 	if a.scr == scDrive {
-		a.game.Update(dt)
+		a.game.Update(dt, a.in.controls(time.Now()))
 		if a.game.cityPassed {
 			a.game.cityPassed = false
 			a.saveStop()

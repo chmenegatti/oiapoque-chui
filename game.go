@@ -5,8 +5,6 @@ import (
 	"math"
 	"math/rand"
 	"time"
-
-	"github.com/gdamore/tcell/v2"
 )
 
 const (
@@ -28,29 +26,10 @@ const (
 
 var playerZ = camHeight * camDepth
 
-type action int
-
-const (
-	actUp action = iota
-	actDown
-	actLeft
-	actRight
-	nActions
-)
-
-// Terminal não manda "soltou tecla": consideramos segurada enquanto chegam
-// repetições. A 1ª repetição demora (delay do SO), por isso a janela maior.
-type keyState struct {
-	last    time.Time
-	repeats int
-}
-
-func (k keyState) held(now time.Time) bool {
-	win := 120 * time.Millisecond
-	if k.repeats == 0 {
-		win = 600 * time.Millisecond
-	}
-	return !k.last.IsZero() && now.Sub(k.last) < win
+// Controls é o estado dos comandos de direção num quadro. Cada frontend
+// (terminal, janela 3D) traduz o seu teclado/controle para isto.
+type Controls struct {
+	Up, Down, Left, Right bool
 }
 
 type state int
@@ -66,14 +45,14 @@ type vehicle struct {
 	top, accel, heat, tank, width float64
 	grip                          float64 // multiplica o escorregão extra (chuva/terra)
 	headlight                     float64 // alcance do farol em segmentos
-	spr                           *Sprite
+	boat                          bool
 }
 
 func makeVehicle(rt *Route, up map[string]bool) vehicle {
 	if rt.boat() {
-		return vehicle{top: boatTop, accel: maxSpeed / 10, width: 0.9, grip: 1, headlight: 60, spr: sprBalsa}
+		return vehicle{top: boatTop, accel: maxSpeed / 10, width: 0.9, grip: 1, headlight: 60, boat: true}
 	}
-	v := vehicle{top: carTop, accel: accel, heat: 1, tank: tankL, width: carW, grip: 1, headlight: 40, spr: spr147}
+	v := vehicle{top: carTop, accel: accel, heat: 1, tank: tankL, width: carW, grip: 1, headlight: 40}
 	if up["motor"] {
 		v.top, v.accel, v.heat = 155, v.accel*1.25, v.heat*1.1
 	}
@@ -109,8 +88,7 @@ type Game struct {
 	braking, throttle        bool
 	overheat, beep, gotPrize bool
 	paused, cityPassed       bool
-	cruise, steerKeep        bool      // piloto de velocidade; heurística de curva
-	kb                       *Keyboard // estado real das setas (protocolo kitty)
+	cruise                   bool // piloto de velocidade (acelerador travado)
 	state                    state
 
 	msg                         string
@@ -119,7 +97,6 @@ type Game struct {
 	warnedRadr                  int
 
 	cars  []Car
-	keys  [nActions]keyState
 	frame *Frame
 	proj  [drawDist]proj
 	rng   *rand.Rand
@@ -174,54 +151,6 @@ func (g *Game) tow() bool {
 	return true
 }
 
-func (g *Game) press(ev *tcell.EventKey) {
-	a := action(-1)
-	switch ev.Key() {
-	case tcell.KeyUp:
-		a = actUp
-	case tcell.KeyDown:
-		a = actDown
-	case tcell.KeyLeft:
-		a = actLeft
-	case tcell.KeyRight:
-		a = actRight
-	case tcell.KeyRune:
-		switch ev.Rune() {
-		case 'w':
-			a = actUp
-		case 's':
-			a = actDown
-		case 'a':
-			a = actLeft
-		case 'd':
-			a = actRight
-		}
-	}
-	if a < 0 {
-		return
-	}
-	now := time.Now()
-	k := &g.keys[a]
-	if k.held(now) {
-		k.repeats++
-	} else {
-		k.repeats = 0
-	}
-	k.last = now
-	// direções opostas se cancelam
-	g.keys[a^1] = keyState{}
-	switch a {
-	case actDown:
-		g.cruise = false
-	case actLeft, actRight:
-		// sem aviso de "soltou", o terminal para de repetir ↑ quando a seta
-		// de direção é apertada: assume ↑ ainda apertado enquanto vira
-		if g.keys[actUp].held(now) || g.steerKeep {
-			g.steerKeep = true
-		}
-	}
-}
-
 // toggleCruise liga/desliga o piloto de velocidade (acelerador travado).
 func (g *Game) toggleCruise() {
 	g.cruise = !g.cruise
@@ -232,16 +161,7 @@ func (g *Game) toggleCruise() {
 	}
 }
 
-// held: tecla apertada? Com o protocolo kitty, estado real das setas
-// (w/a/s/d seguem pela repetição); senão, pela repetição do terminal.
-func (g *Game) held(a action, now time.Time) bool {
-	if g.kb.Active() && g.kb.Down(a) {
-		return true
-	}
-	return g.keys[a].held(now)
-}
-
-func (g *Game) Update(dt float64) {
+func (g *Game) Update(dt float64, in Controls) {
 	if g.paused {
 		return
 	}
@@ -252,17 +172,7 @@ func (g *Game) Update(dt float64) {
 		return
 	}
 	g.elapsed += dt
-	now := time.Now()
-	held := func(a action) bool { return g.held(a, now) }
-	steering := held(actLeft) || held(actRight)
-	up := held(actUp)
-	if !g.kb.Active() {
-		if up || !steering {
-			g.steerKeep = up && steering
-		}
-		up = up || (g.steerKeep && steering)
-	}
-	g.throttle = up || g.cruise
+	g.throttle = in.Up || g.cruise
 	rt := g.route
 	boat := rt.boat()
 	seg := g.road.find(g.pos + playerZ)
@@ -272,9 +182,9 @@ func (g *Game) Update(dt float64) {
 	dx := dt * 2 * math.Min(pct, 1)
 
 	// direção: terra e chuva fazem escorregar mais na curva
-	if held(actLeft) {
+	if in.Left {
 		g.playerX -= dx
-	} else if held(actRight) {
+	} else if in.Right {
 		g.playerX += dx
 	}
 	slip := (ter.grip - 1) + 0.6*g.rainD
@@ -288,7 +198,7 @@ func (g *Game) Update(dt float64) {
 	if !boat && g.fuel <= 0 {
 		power = 0
 	}
-	g.braking = held(actDown)
+	g.braking = in.Down
 	if g.braking {
 		g.cruise = false
 	}

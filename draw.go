@@ -216,16 +216,16 @@ func (g *Game) Draw(s tcell.Screen) {
 		sh := shadeAt(i)
 		shade := func(_ byte, c RGB) RGB { return sh(c) }
 		for _, pr := range r.segs[base.index+i].props {
-			f.Sprite(pr.spr, p.x1+p.s1*pr.x*roadWidth*xs, p.y1, p.s1*pr.w*roadWidth*xs, float64(p.clip), nil, shade)
+			f.Sprite(propSprites[pr.kind], p.x1+p.s1*pr.x*roadWidth*xs, p.y1, p.s1*pr.w*roadWidth*xs, float64(p.clip), nil, shade)
 		}
 		for _, ci := range buckets[i] {
 			c := g.cars[ci]
 			t := wrap(c.z, segLen) / segLen
 			sc := lerp(p.s1, p.s2, t)
 			cx := lerp(p.x1, p.x2, t) + sc*c.x*roadWidth*xs
-			spr := c.kind.rear
+			spr := vehSprites[c.kind][0]
 			if c.dir < 0 {
-				spr = c.kind.front
+				spr = vehSprites[c.kind][1]
 			}
 			f.Sprite(spr, cx, lerp(p.y1, p.y2, t), sc*c.kind.w*roadWidth*xs, float64(p.clip), &c.color,
 				func(ch byte, col RGB) RGB {
@@ -250,7 +250,7 @@ func (g *Game) Draw(s tcell.Screen) {
 	}
 	pk := math.Max(light, 0.5)
 	pw := g.veh.width * roadWidth / camHeight * xs
-	f.Sprite(g.veh.spr, float64(W)/2, float64(H)-bounce, pw, float64(H)+1, nil,
+	f.Sprite(playerSprite(g.veh), float64(W)/2, float64(H)-bounce, pw, float64(H)+1, nil,
 		func(ch byte, col RGB) RGB {
 			switch {
 			case ch == 'R' && g.braking:
